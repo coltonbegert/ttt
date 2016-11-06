@@ -91,6 +91,9 @@ def play():
             print("##############")
             print(e)
             print("##############")
+    print("\n\n#########")
+    print("Player", B.winner, "wins!")
+    print("#########")
 
 def get_input(prompt):
     while True:
