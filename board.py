@@ -6,6 +6,7 @@ class Board:
         self._board = np.zeros((9,9), dtype='uint8')
         self._miniwins = np.zeros((3,3), dtype='uint8')
         self._next_board = None
+        self.winner = None
 
     def move(self, row, col, player):
         (br, mr), (bc, mc) = divmod(row,3), divmod(col,3)
@@ -18,9 +19,11 @@ class Board:
         if winning_state(miniboard, player):
             self._miniwins = player
             self._next_board = None
+            if winning_state(self._miniwins, player):
+                self.winner = player
         else:
-
             self._next_board = mr, mc
+        return self.winner
 
     def _get_miniboard(self, br, bc):
         return self._board[br*3:(br+1)*3, bc*3:(bc+1)*3]
