@@ -7,22 +7,31 @@ class Board:
         self._miniwins = np.zeros((3,3), dtype='uint8')
         self._next_board = None
         self.winner = None
+        self.player = 1
 
     def move(self, row, col, player):
         (br, mr), (bc, mc) = divmod(row,3), divmod(col,3)
+
         assert self._next_board is None or (br,bc) == self._next_board, "Must play in the active board"
         assert self._board[row, col] == 0, "That cell is taken"
         assert self._miniwins[br, bc] == 0, "That board already has a winner"
+
         self._board[row, col] = player
 
+        # Check if the miniboard has a win
         miniboard = self._get_miniboard(br, bc)
         if winning_state(miniboard, player):
             self._miniwins = player
             self._next_board = None
+            # Check if the main board has a win
             if winning_state(self._miniwins, player):
                 self.winner = player
         else:
             self._next_board = mr, mc
+
+        # Swap players
+        self.player = 3 - self.player
+
         return self.winner
 
     def _get_miniboard(self, br, bc):
@@ -55,3 +64,39 @@ def board_iter(size):
     for r in range(size):
         for c in range(size):
             yield r,c
+
+def play():
+    # Allows humans to play
+    B = Board()
+    while B.winner is None:
+        print("Player", B.player)
+        print(B)
+        if B._next_board is None:
+            br = get_input("Board row: ")
+            bc = get_input("Board col: ")
+        else:
+            br, bc = B._next_board
+
+        print("Playing in board {}, {}".format(br, bc))
+
+        mr = get_input("Row: ")
+        mc = get_input("Col: ")
+
+        r = br*3 + mr
+        c = bc*3 + mc
+
+        try:
+            B.move(r,c, B.player)
+        except Exception as e:
+            print("##############")
+            print(e)
+            print("##############")
+
+def get_input(prompt):
+    while True:
+        try:
+            return int(input(prompt))
+        except ValueError:
+            print("##############")
+            print("Invalid input")
+            print("##############")
