@@ -27,8 +27,13 @@ class Board:
             self._miniwins[br, bc] = miniwin
             self._next_board = None
             # Check if the main board has a win
-            if winning_state(self._miniwins, player):
+            big_win = winning_state(self._miniwins, player)
+            if big_win == player:
                 self.winner = player
+            # Big game tie!
+            elif big_win > 0:
+                self.winner = 0
+                return 0
         else:
             # Make sure that board doesn't have a winner
             if self._miniwins[mr,mc] == 0:
