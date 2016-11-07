@@ -8,6 +8,7 @@ class Board:
         self._next_board = None
         self.winner = None
         self.player = 1
+        self.turns_left = 81
 
     def move(self, row, col, player):
         (br, mr), (bc, mc) = divmod(row,3), divmod(col,3)
@@ -17,17 +18,26 @@ class Board:
         assert self._miniwins[br, bc] == 0, "That board already has a winner"
 
         self._board[row, col] = player
+        self.turns_left -= 1
 
         # Check if the miniboard has a win
         miniboard = self._get_miniboard(br, bc)
-        if winning_state(miniboard, player):
-            self._miniwins[br,bc] = player
+        miniwin = winning_state(miniboard, player)
+        if miniwin:
+            self._miniwins[br, bc] = miniwin
             self._next_board = None
             # Check if the main board has a win
             if winning_state(self._miniwins, player):
                 self.winner = player
         else:
-            self._next_board = mr, mc
+            # Make sure that board doesn't have a winner
+            if self._miniwins[mr,mc] == 0:
+                self._next_board = mr, mc
+            else:
+                self._next_board = None
+
+            if self.turns_left == 0:
+                self.winner = 0
 
         # Swap players
         self.player = 3 - self.player
@@ -39,10 +49,10 @@ class Board:
 
     def get_valid(self):
         if self._next_board is None:
-            return [(r,c) for r,c in board_iter(9) if self._board[r,c] == 0]
+            return [(r,c) for r,c in board_iter(9) if self._board[r,c] == 0 and self._miniwins[r//3,c//3] == 0]
         else:
             br, bc = self._next_board
-            return [(br*3+r,bc*3+c) for r,c in board_iter(3) if self._board[r,c] == 0]
+            return [(br*3+r,bc*3+c) for r,c in board_iter(3) if self._board[br*3+r,bc*3+c] == 0]
 
     def __repr__(self):
         s = '\n'
