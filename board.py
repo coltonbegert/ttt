@@ -21,7 +21,7 @@ class Board:
         # Check if the miniboard has a win
         miniboard = self._get_miniboard(br, bc)
         if winning_state(miniboard, player):
-            self._miniwins = player
+            self._miniwins[br,bc] = player
             self._next_board = None
             # Check if the main board has a win
             if winning_state(self._miniwins, player):
@@ -87,7 +87,7 @@ def play():
 
         try:
             B.move(r,c, B.player)
-        except Exception as e:
+        except AssertionError as e:
             print("##############")
             print(e)
             print("##############")
@@ -103,3 +103,6 @@ def get_input(prompt):
             print("##############")
             print("Invalid input")
             print("##############")
+
+if __name__ == '__main__':
+    play()
