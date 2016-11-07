@@ -1,26 +1,27 @@
-from random import choice
 from board import Board
 
-# Plays a random game of UTTT and puts the moves list in a text file
-def sample(outfile='moves.dat'):
+# Replays a game of UTTT loaded from an input file
+def replay(infile='moves.dat'):
     B = Board()
-    with open(outfile, 'w') as f:
-        while B.winner is None:
+    with open(infile) as f:
+        for line in f:
+            _,sr,_,sc,*_ = line
+            r = int(sr)
+            c = int(sc)
+
             print("Player", B.player)
             print(B)
-
-            print("Choosing from:")
             print(B.get_valid())
-            r,c = choice(B.get_valid())
-            f.write("({},{})\n".format(r,c))
             print("played ({},{})".format(r,c))
             B.move(r,c, B.player)
 
+    print(B)
     if B.winner:
         print("Winner: Player", B.winner)
     else:
         print("Game is a tie!")
+
     return B.winner
 
 if __name__ == '__main__':
-    sample()
+    replay()

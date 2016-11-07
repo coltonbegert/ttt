@@ -80,34 +80,42 @@ def board_iter(size):
         for c in range(size):
             yield r,c
 
-def play():
+def play(outfile='moves.dat'):
     # Allows humans to play
     B = Board()
-    while B.winner is None:
-        print("Player", B.player)
-        print(B)
-        if B._next_board is None:
-            br = get_input("Board row: ")
-            bc = get_input("Board col: ")
-        else:
-            br, bc = B._next_board
+    with open(outfile, 'w') as f:
+        while B.winner is None:
+            print("Player", B.player)
+            print(B)
+            if B._next_board is None:
+                br = get_input("Board row: ")
+                bc = get_input("Board col: ")
+            else:
+                br, bc = B._next_board
 
-        print("Playing in board {}, {}".format(br, bc))
+            print("Playing in board {}, {}".format(br, bc))
 
-        mr = get_input("Row: ")
-        mc = get_input("Col: ")
+            mr = get_input("Row: ")
+            mc = get_input("Col: ")
 
-        r = br*3 + mr
-        c = bc*3 + mc
+            r = br*3 + mr
+            c = bc*3 + mc
 
-        try:
-            B.move(r,c, B.player)
-        except AssertionError as e:
-            print("##############")
-            print(e)
-            print("##############")
+            try:
+                B.move(r,c, B.player)
+            except AssertionError as e:
+                print("##############")
+                print(e)
+                print("##############")
+                continue
+            # Write if the move was valid
+            f.write('({},{})\n'.format(r, c))
+
     print("\n\n#########")
-    print("Player", B.winner, "wins!")
+    if B.winner:
+        print("Player", B.winner, "wins!")
+    else:
+        print("Game is a tie!")
     print("#########")
 
 def get_input(prompt):
