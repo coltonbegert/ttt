@@ -1,6 +1,7 @@
 import queue
 import time
 import threading
+import simulations
 
 class MCTS:
     """
@@ -140,6 +141,9 @@ class MCTS:
                 break
         self._lock.release()
         return
+
+def get_player(board, player, sim=simulations.random_mini_final):
+    return MCTS(board, sim(player))
 
 def trial():
     import board
