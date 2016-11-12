@@ -1,3 +1,5 @@
+import numpy as np
+
 def winning_state(board, player):
     # check if a state is winning for the given player
     for i in range(3):
@@ -15,3 +17,12 @@ def winning_state(board, player):
         return 3
 
     return 0
+
+def full_board_winning_state(board, player):
+    miniwins = np.zeros((3,3))
+    opp = 3 - player
+    for br in range(3):
+        for bc in range(3):
+            miniboard = board[3*br:3*(br+1), 3*bc:3*(bc+1)]
+            miniwins[br,bc] = winning_state(miniboard, player) | winning_state(miniboard, opp)
+    return winning_state(miniwins, player)

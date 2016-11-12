@@ -10,7 +10,19 @@ class Board:
         self.player = 1
         self.turns_left = 81
 
-    def move(self, row, col, player):
+    def clone(self):
+        B = Board()
+        B._board = self._board.copy()
+        B._miniwins = self._miniwins.copy()
+        B._next_board = self._next_board
+        B.winner = self.winner
+        B.player = self.player
+        B.turns_left = self.turns_left
+        return B
+
+    def move(self, row, col, player=None):
+        if player is None:
+            player = self.player
         (br, mr), (bc, mc) = divmod(row,3), divmod(col,3)
 
         assert self._next_board is None or (br,bc) == self._next_board, "Must play in the active board"
