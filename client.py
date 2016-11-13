@@ -1,57 +1,87 @@
 import socket
 import threading
+import warnings
 from socket_helper import *
 
 class Client:
-    def __init__(self, bot, host=None, port=11001):
+    def __init__(self, bot_const, host=None, port=11001):
         """
-        :param bot: A bot object to call on request
+        :param bot_const: A bot constructor that creates a bot object
             A bot must implement 2 methods:
                 update(last_player, last_move)
                 request(valid_moves)
             The bot is responsible for maintaining its own correct
             copy of the board
         """
-        self._bot = bot
+        self._bot_const = bot_const
+        self._bot = None
 
         if host is None:
             host = socket.gethostname()
 
+        print("Trying to connect to {}:{} ... ".format(host,port), end='',flush=True)
         self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._client.connect((host,port))
+        print("Success!")
 
-        t = threading.Thread(target=self._recv)
-        t.start()
+        self._thread = None
+        self._closed = False
+
+    def start(self, threaded=False):
+        if self._closed:
+            raise RuntimeError("Service already closed")
+        if threaded:
+            if self._thread is None:
+                self._thread = threading.Thread(target=self._recv)
+                self._thread.start()
+        else:
+            self._recv()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
     def _recv(self):
-        header = int(recv(self._client, 1))
-        if header == 0:
-            self._receive_move_request()
-        if header == 1:
-            self._receive_update()
+        while True:
+            header = recv_int(self._client)
+            if header == 0:
+                self._receive_move_request()
+            elif header == 1:
+                self._receive_update()
+            elif header == 3:
+                self._receive_board()
+            elif header == 4:
+                self._receive_player_id()
+            elif header == 10:
+                self._receive_gameover()
+                break
+            else:
+                print("#### WARNING: Received unknown packet type", header)
+
+        self.close()
+
 
     def _receive_move_request(self):
         """
         REQUEST_MOVE:
         0: HEADER (0)
-        1: NUM_OPTIONS (int)
-        2: SIZEOF(OPTION) (int)
-        3-: OPTIONS* (int*)
         """
-        num_options = int(recv(self._client, 1))
-        size = int(recv(self._client, 1))
-        option_data = recv(self._client, size*num_options)
-        options = []
-        for i in range(num_options):
-            option = option_data[i*size:(i+1)*size]
-            option = tuple(map(int, option))
-            options.append( option )
-
-        move = self._bot.request(options)
+        move = self._bot.request()
         self._send_move(move)
+
+    def _receive_player_id(self):
+        """
+        PLAYER_ID
+            0: HEADER (4)
+            1: ID (int)
+        """
+        if self._bot is None:
+            player = recv_int(self._client)
+            self._bot = self._bot_const(player)
+            self._id = player
+            print("Bot initialized successfully!")
+            print("You are player", player)
+        else:
+            warnings.warn("Player already has been issued an id. Packet was ignored.", RuntimeWarning)
 
     def _receive_update(self):
         """
@@ -61,12 +91,38 @@ class Client:
             2:      SIZEOF(LAST_MOVE) (int)
             3:      LAST_MOVE (position)
         """
-        last_player = int(recv(self._client, 1))
-        size = int(recv(self._client, 1))
+        last_player = recv_int(self._client)
+        size = recv_int(self._client)
         last_move_data = recv(self._client, size)
-        last_move = tuple(map(int, last_move_data))
+        last_move = tuple(p for p in last_move_data)
 
         self._bot.update(last_player, last_move)
+
+    def _receive_board(self):
+        """
+        BOARD:
+            0:  HEADER (3)
+            1:  SIZEOF(BOARD_STATE) // 256
+            2:  SIZEOF(BOARD_STATE) % 256
+            3:  BOARD_STATE (*)
+        """
+        return
+        hi = recv_int(self._client)
+        lo = recv_int(self._client)
+        size = hi*256 + lo
+        board = recv(self._client, size)
+
+    def _receive_gameover(self):
+        print("GAME OVER")
+        winner = recv_int(self._client)
+        if winner == 0:
+            print("Game is a tie!")
+        else:
+            if self._id == winner:
+                print("You win!")
+            else:
+                print("You lose.")
+
 
     def _send_move(self, move):
         """
@@ -76,8 +132,10 @@ class Client:
             2:  OPTION (int)
         """
         packet = pack(2, len(move), *move)
-        send(packet)
+        send(self._client, packet)
 
     def close(self):
-        self._client.shutdown()
-        self._client.close()
+        if not self._closed:
+            self._client.shutdown(0)
+            self._client.close()
+        self._closed = True

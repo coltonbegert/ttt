@@ -33,6 +33,7 @@ form when sending back
 Players should connect to port 11001
 """
 import socket
+import time
 from socket_helper import *
 
 class Server:
@@ -45,10 +46,16 @@ class Server:
             host = socket.gethostname()
 
         self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._server.bind((host, port))
-        self._server.listen(1)
+        self._server.listen(2)
+
+        self._closed = False
 
     def start(self):
+        if self._closed:
+            raise RuntimeError("Service already closed")
+
         self._connect()
 
         while self._board.winner is None:
@@ -66,24 +73,46 @@ class Server:
 
             for sock in self._players:
                 self._send_update(sock, turn, move)
+                self._send_board(sock)
+
+        if self._board.winner == 0:
+            print("Game is a tie!")
+        else:
+            print("Player", self._board.winner, "wins!")
+
+        for sock in self._players:
+            self._send_gameover(sock, self._board.winner)
+
+        time.sleep(3)
+        self.close()
 
     def _connect(self):
+        count = 0
         while len(self._players) != 2:
-            print("Waiting for player", len(self._players)+1)
+            print("Waiting for player", len(self._players)+1, "...", end=' ',flush=True)
             (client, address) = self._server.accept()
             self._players.append(client)
             self._addresses.append(address)
+
+            count += 1
+            self._send_player_id(client, count)
+            print("Success!")
+
+    def _send_player_id(self, sock, num):
+        """
+        PLAYER_ID
+            0: HEADER (4)
+            1: ID (int)
+        """
+        packet = pack(4, num)
+        send(sock, packet)
 
     def _send_request_move(self, sock):
         """
         REQUEST_MOVE:
             0: HEADER (0)
-            1: NUM_OPTIONS (int)
-            2: SIZEOF(OPTION) (int)
-            3-: OPTIONS* (int*)
         """
-        options = self._board.get_valid()
-        packet = pack(0, len(options), len(options[0]), *options)
+        packet = pack(0)
         send(sock, packet)
 
     def _send_update(self, sock, player, move):
@@ -97,6 +126,30 @@ class Server:
         packet = pack(1, player, len(move), *move)
         send(sock, packet)
 
+    def _send_board(self, sock):
+        """
+        BOARD:
+            0:  HEADER (3)
+            1:  SIZEOF(BOARD_STATE) // 256
+            2:  SIZEOF(BOARD_STATE) % 256
+            3:  BOARD_STATE (*)
+        """
+        return
+        state = self._board.tobytes()
+        hi, lo = divmod(len(state), 256)
+
+        packet = pack(3, hi, lo, *state)
+        send(sock, packet)
+
+    def _send_gameover(self, sock, winner):
+        """
+        GAME OVER:
+            0:  HEADER (10)
+            1:  WINNER (int)
+        """
+        packet = pack(10, winner)
+        send(sock, packet)
+
     def _receive_move(self, sock):
         """
         MOVE:
@@ -104,13 +157,17 @@ class Server:
             1:  SIZEOF(OPTION) (int)
             2:  OPTION (int)
         """
-        packet = recv(sock, 2)
-        assert packet[0] == 2
-        return tuple(map(int,packet[1:]))
+        header = recv_int(sock)
+        assert header == 2, "Control flow issue. Expected to receive move header, got {}".format(header)
+        size = recv_int(sock)
+        packet = recv(sock, size)
+        return tuple(p for p in packet)
 
     def close(self):
-        self._server.shutdown()
-        self._server.close()
+        if not self._closed:
+            self._server.shutdown(0)
+            self._server.close()
+        self._closed = True
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()

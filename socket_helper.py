@@ -10,12 +10,16 @@ def send(sock, packet):
         totalsent += sent
 
 def recv(sock, N):
+    assert N > 0
     chunks = []
     totalrecv = 0
     while totalrecv < N:
         chunk = sock.recv(min(N - totalrecv, 2048))
-        if chunk == '':
+        if chunk == b'' or not chunk:
             raise RuntimeError("Socket input stream broken")
         chunks.append(chunk)
         totalrecv += len(chunk)
-    return ''.join(chunks)
+    return b''.join(chunks)
+
+def recv_int(sock):
+    return recv(sock, 1)[0]
