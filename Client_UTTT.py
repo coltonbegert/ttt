@@ -15,13 +15,13 @@ def main(bot):
 
 def make_bot(board, bot):
     def _make(player):
-        return bot(board, player)
+        return bot(board, player, *sys.argv[2:])
     return _make
 
 if __name__ == '__main__':
     import sys
-    if len(sys.argv) != 2:
-        print("\nUsage: python3 Client_UTTT.py bot_name\n")
+    if len(sys.argv) < 2:
+        print("\nUsage: python3 Client_UTTT.py bot_name [args]\n")
         exit(1)
-    bot = bots.get_bot(sys.argv[-1])
+    bot = bots.get_bot(sys.argv[1])
     main(bot)

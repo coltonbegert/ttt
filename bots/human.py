@@ -6,12 +6,12 @@ class Bot(BaseBot):
 
         while True:
             B = self.board.clone()
-            print(B)
-            if B._nextboard is None:
+            B.pprint()
+            if B._next_board is None:
                 br = get_input("Board row: ")
                 bc = get_input("Board col: ")
             else:
-                br, bc = B._nextboard
+                br, bc = B._next_board
 
             print("Playing in board {}, {}".format(br, bc))
 

@@ -59,11 +59,12 @@ class Server:
         self._connect()
 
         while self._board.winner is None:
-            turn = self._board.player - 1
+            player_num = self._board.player
+            turn = player_num - 1
             player = self._players[turn]
 
-            print("Player", turn)
-            print(self._board)
+            print("Player", player_num)
+            self._board.pprint()
 
             self._send_request_move(player)
             move = self._receive_move(player)
@@ -75,6 +76,7 @@ class Server:
                 self._send_update(sock, turn, move)
                 self._send_board(sock)
 
+        self._board.pprint()
         if self._board.winner == 0:
             print("Game is a tie!")
         else:

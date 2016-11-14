@@ -78,6 +78,7 @@ class Client:
             player = recv_int(self._client)
             self._bot = self._bot_const(player)
             self._id = player
+            self._bot.start()
             print("Bot initialized successfully!")
             print("You are player", player)
         else:
@@ -122,6 +123,7 @@ class Client:
                 print("You win!")
             else:
                 print("You lose.")
+        self._bot.stop()
 
 
     def _send_move(self, move):

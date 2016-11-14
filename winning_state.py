@@ -1,5 +1,21 @@
 import numpy as np
 
+def winner(board):
+    # Assumes the game is over and determines the winner
+    win = winning_state(board, 1)
+    # If tie, return 0
+    if win == 3:
+        return 0
+    # Else, return actual winner
+    return 1 if win==1 else 2
+
+def full_winner(board):
+    # Assumes the game is over and determines the winner of the 9x9
+    win = full_board_winning_state(board, 1)
+    if win == 3:
+        return 0
+    return 1 if win==1 else 2
+
 def winning_state(board, player):
     # check if a state is winning for the given player
     for i in range(3):
