@@ -11,7 +11,7 @@ import winning_state
 class Bot(BaseBot):
     def setup(self, *args):
         """ Called after initialization """
-        self.thinking_time = 20
+        self.thinking_time = 30
         self.tree = PriorityQueue()
         self.total_sims = 1
         self.lock = threading.Lock()
@@ -171,9 +171,9 @@ class Bot(BaseBot):
 
         # If there's a one move win, take it
         # (turn 18 is the first turn in which a player can win)
-        board = self.board.clone()
-        if board.turns_left < 64:
-            dfs = self.dfs_check(board, max_depth=10)
+        if self.board.turns_left < 64:
+            board = self.board.clone()
+            dfs = self.dfs_check(board, max_depth=3)
             if dfs is not None:
                 path, options = dfs
                 conf = None
@@ -184,6 +184,7 @@ class Bot(BaseBot):
                     print("You're toast!")
                 else:
                     print("This seems good...")
+                sleep(2)
                     
                 if conf:
                     print("Choosing move {} with confidence {:.3f}".format(move, conf))
@@ -270,6 +271,7 @@ class Bot(BaseBot):
             for move in valid[:-1]:
                 # (Simulate all branches at least once)
                 winner = self.simulation(board.clone())
+                self.total_sims += 1
                 win = int(player == winner)
                 score = (win,1)
                 subtree = PriorityQueue()

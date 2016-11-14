@@ -137,7 +137,6 @@ class Client:
         send(self._client, packet)
 
     def close(self):
-        self._bot.board.pprint()
         if not self._closed:
             self._client.shutdown(0)
             self._client.close()
