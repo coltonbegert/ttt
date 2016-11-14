@@ -9,7 +9,7 @@ class Bot(BaseBot):
         self.tree = []
         self.root_score = [0, 0]
 
-        self.thinking_time = 10
+        self.thinking_time = 15
         self.min_searches = 1000
         self.max_searches = 10000
 
@@ -52,13 +52,15 @@ class Bot(BaseBot):
             board.move(*move)
             winner = self._search(board, subtree, score)
         else:
-            # Expansion
             options = board.get_valid()
             if not options:
                 return board.winner
             else:
+                # Expansion
                 for move in options:
-                    tree.append([parent_score, [0,0], move, []])
+                    branch = [parent_score, [0,0], move, []]
+                    tree.append(branch)
+
                 branch = choice(tree)
                 parent_score, score, move, subtree = branch
 
@@ -99,12 +101,10 @@ class Bot(BaseBot):
 
     def confidence(self, branch):
         parent_score, score, move, subtree = branch
-        if parent_score[1] == 0: return float('inf')
+        if score[1] == 0 or parent_score[1] == 0: return float('inf')
 
-        simple = (score[0]+1) / (score[1]+2)
-        if score[1] == 0: return simple
-
-        return simple + sqrt(log(score[1]) / parent_score[1]) # UCB
+        mean = score[0] / score[1]
+        return mean + sqrt(2*log(parent_score[1]) / score[1]) # UCB
 
     def request(self):
         print("My turn?")
@@ -129,7 +129,8 @@ class Bot(BaseBot):
         self.waiting = False
 
         super(Bot, self).update(last_player, last_turn)
-        for parent_score, score, move, subtree in self.tree:
+        for branch in self.tree:
+            parent_score, score, move, subtree = branch
             if move == last_turn:
                 self.root_score = score
                 self.tree = subtree
