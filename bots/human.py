@@ -29,6 +29,15 @@ class Bot(BaseBot):
                 print("##############")
                 continue
 
+            confirm = '?'
+            while confirm not in {'y','n'}:
+                B.pprint()
+                confirm = input("Is this what you want? (Y/n) ").lower()
+                if not confirm: confirm = 'y'
+            if confirm == 'n':
+                continue
+
+            print("Waiting for a response from your opponent...\n")
             return r,c
 
 def get_input(prompt):
