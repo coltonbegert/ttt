@@ -57,12 +57,12 @@ class Bot(BaseBot):
             winner = self._search(board, subtree, score)
             # -- Fall through for backprop
         else:
-            options = board.get_valid()
-            if not options:
+            if board.winner is not None:
                 # -- This leaf is terminal
                 return board.winner
             else:
                 ## Expansion
+                options = board.get_valid()
                 for move in options:
                     branch = [parent_score, [0,0], move, []]
                     tree.append(branch)
