@@ -17,6 +17,12 @@ class Bot(BaseBot):
         self.waiting = False
         self.lock = threading.Lock()
 
+        # Optimal constants are theoretically sqrt(2), but
+        # this causes a large amount of exploration.
+        # Setting these closer to 0 results in more exploitation and less exploration.
+        # Setting these to a negative value forces it to
+        # use lower confidence bounds instead of upper confidence bounds.
+
         self.select_const = 1 # Const to use for UCB in MCTS.select
         self.picking_const = -1  # Const to use when picking a move to make
 
@@ -129,14 +135,15 @@ class Bot(BaseBot):
         return 0
 
     def scoring_function(self, const):
-        # Prefer branches that have high confidence
-        # Break ties randomly
+        # Return a function that can be used in sorting
         return lambda branch: self.confidence(branch, const)
 
     def score_branch(self, branch):
+        # Prefer branches that have high confidence
+        # Break ties randomly
         return self.confidence(branch), random()
 
-    def confidence(self, branch, c=.707):
+    def confidence(self, branch, c):
         # UCB formula
         parent_score, score, move, subtree = branch
         if score[1] == 0 or parent_score[1] == 0: return float('inf')
@@ -159,13 +166,15 @@ class Bot(BaseBot):
         print("-- Potential moves --")
         for i,branch in enumerate(sorted(self.tree, key=self.confidence, reverse=True)):
             parent_score, score, move, subtree = branch
-            print("{:4s}".format(str(i+1)), move, "->", "{:12s}".format(str(score)), "{:.3f}".format(self.confidence(branch)))
+            print("{:4s}".format(str(i+1)), move, "->", "{:12s}".format(str(score)),
+                  "{:.3f}".format(self.confidence(branch, self.select_const)),
+                    "({:.3f})".format(self.confidence(branch, self.picking_const)))
 
         # Pick the move that is least likely to be a bad move
         branch = self.get_best(self.tree, self.picking_const)
         parent_score, score, move, subtree = branch
         print()
-        print("Choosing move {} with score {} and confidence {:.3f}".format(move, score, self.confidence(branch)))
+        print("Choosing move {} with score {} and confidence {:.3f}".format(move, score, self.confidence(branch, self.picking_const)))
         print("  Root score was {}".format(self.root_score))
         print()
 
@@ -180,12 +189,25 @@ class Bot(BaseBot):
         self.lock.acquire()
         self.waiting = False
 
+        if last_player != self.player:
+            print("-- Expected moves --")
+            for i,branch in enumerate(sorted(self.tree, key=self.confidence, reverse=True)):
+                parent_score, score, move, subtree = branch
+                print("{:4s}".format(str(i+1)), move, "->", "{:12s}".format(str(score)),
+                      "{:.3f}".format(self.confidence(branch, self.select_const)),
+                      "({:.3f})".format(self.confidence(branch, self.picking_const)))
+
         super(Bot, self).update(last_player, last_turn)
         for branch in self.tree:
             parent_score, score, move, subtree = branch
             if move == last_turn:
                 self.root_score = score
                 self.tree = subtree
+
+        print()
+        print("Opponent played {} with score {} and confidence {:.3f}".format(move, score, self.confidence(branch, self.picking_const)))
+        print("  Root score was {}".format(parent_score))
+        print()
 
         self.last_time = time()
         self.counter = 0
