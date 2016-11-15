@@ -1,6 +1,5 @@
 import server
 import board
-import traceback
 
 def main():
     with open('moves.dat', 'w') as f:

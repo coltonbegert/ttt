@@ -21,15 +21,18 @@ class Bot(BaseBot):
         self.counter = 0
         self.turn_number = 0
 
+        # Thread process
         def runner():
             while self.board.winner is None:
                 self.lock.acquire()
+                # -- Guarantee we meet our minimum searches
                 for i in range(self.min_searches):
                     self.search()
                     sleep(0.000001)
                 self.waiting = True
                 self.lock.release()
 
+                # -- If we have time, keep searching
                 while self.waiting:
                     self.lock.acquire()
                     self.search()
@@ -40,23 +43,26 @@ class Bot(BaseBot):
         self.thread.start()
 
     def search(self):
+        # Update the root node using MCTS
         winner = self._search(self.board.clone(), self.tree, self.root_score)
         self._update_score(self.root_score, winner, self.board.player)
         self.counter += 1
 
     def _search(self, board, tree, parent_score):
         player = board.player
-        # Selection
+        ## Selection
         if tree:
             parent_score, score, move, subtree = self.get_best(tree)
             board.move(*move)
             winner = self._search(board, subtree, score)
+            # -- Fall through for backprop
         else:
             options = board.get_valid()
             if not options:
+                # -- This leaf is terminal
                 return board.winner
             else:
-                # Expansion
+                ## Expansion
                 for move in options:
                     branch = [parent_score, [0,0], move, []]
                     tree.append(branch)
@@ -64,28 +70,31 @@ class Bot(BaseBot):
                 branch = choice(tree)
                 parent_score, score, move, subtree = branch
 
-                # Simulation
+                ## Simulation
                 board.move(*move)
                 winner = self.simulate(board)
 
+        ## Backprop
         self._update_score(score, winner, player)
-
-        # Backprop
         return winner
 
     def get_best(self, tree):
+        # Returns the best move in the given tree or subtree
         return max(tree, key=self.scoring_function)
 
     def _update_score(self, score, winner, player):
+        # Updates the score for the player and winner
         is_win = int(winner == player)
         score[0] += is_win
         score[1] += 1
 
     def simulate(self, board):
+        # Run a single simulation, returning the player number of the victor
+        # or 0 for a tie
         while board.winner is None:
             options = board.get_valid()
             if board.turns_left < 64:
-                # Take a winning move if available
+                # -- Take a winning move if available
                 for move in options:
                     B = board.clone()
                     B.move(*move)
@@ -100,6 +109,7 @@ class Bot(BaseBot):
         return self.confidence(branch), random()
 
     def confidence(self, branch):
+        # UCB formula
         parent_score, score, move, subtree = branch
         if score[1] == 0 or parent_score[1] == 0: return float('inf')
 
@@ -107,8 +117,10 @@ class Bot(BaseBot):
         return mean + sqrt(2*log(parent_score[1]) / score[1]) # UCB
 
     def request(self):
+        # Ask the bot for a move
+
         print("My turn?")
-        # Give some time to think
+        # -- Give some time to think in case the state changed
         while self.counter < self.max_searches and time() - self.last_time < self.thinking_time:
             sleep(.5)
             m = int(time()%4)
@@ -120,11 +132,15 @@ class Bot(BaseBot):
         parent_score, score, move, subtree = branch
         print("Choosing move {} with score {} and confidence {:.3f}".format(move, score, self.confidence(branch)))
         print("  Root score was {}".format(self.root_score))
+
         assert parent_score == self.root_score, self.tree
         return move
 
     def update(self, last_player, last_turn):
-        # Cut the dead branches
+        # Cut the dead branches when a move is made
+        # We need to override the default behaviour
+        # because we're using threads
+
         self.lock.acquire()
         self.waiting = False
 
@@ -134,7 +150,9 @@ class Bot(BaseBot):
             if move == last_turn:
                 self.root_score = score
                 self.tree = subtree
+
         self.last_time = time()
         self.counter = 0
         self.turn_number += 1
         self.lock.release()
+

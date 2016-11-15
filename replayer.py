@@ -1,5 +1,6 @@
 from board import Board
 from time import sleep
+import sys
 
 # Replays a game of UTTT loaded from an input file
 def replay(infile, pretty_print=False, step_time=0, show_options=False):
@@ -35,4 +36,7 @@ def replay(infile, pretty_print=False, step_time=0, show_options=False):
     return B.winner
 
 if __name__ == '__main__':
-    replay('moves.dat', True, 2, False)
+    fname = 'moves.dat'
+    if len(sys.argv) == 2:
+        fname = sys.argv[-1]
+    replay(fname, True, 2, False)
