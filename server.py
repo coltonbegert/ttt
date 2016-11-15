@@ -74,7 +74,6 @@ class Server:
 
             for sock in self._players:
                 self._send_update(sock, turn, move)
-                self._send_board(sock)
 
         self._board.pprint()
         if self._board.winner == 0:
@@ -126,21 +125,6 @@ class Server:
             3:      LAST_MOVE (position)
         """
         packet = pack(1, player, len(move), *move)
-        send(sock, packet)
-
-    def _send_board(self, sock):
-        """
-        BOARD:
-            0:  HEADER (3)
-            1:  SIZEOF(BOARD_STATE) // 256
-            2:  SIZEOF(BOARD_STATE) % 256
-            3:  BOARD_STATE (*)
-        """
-        return
-        state = self._board.tobytes()
-        hi, lo = divmod(len(state), 256)
-
-        packet = pack(3, hi, lo, *state)
         send(sock, packet)
 
     def _send_gameover(self, sock, winner):

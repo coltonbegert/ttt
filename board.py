@@ -121,49 +121,6 @@ class Board:
         active = lambda s: '\033[1;33;50m{}\033[0;0;0m'.format(s)
         print(self.__repr__(lastmove=lastmove, miniwin=miniwin, active=active))
 
-    def tobytes(self):
-        board = self._board.tobytes('C')
-        miniwins = self._miniwins.tobytes('C')
-        next_board = self._next_board if self._next_board is not None else tuple()
-        winner = self.winner if self.winner is not None else 255
-        player = self.player if self.player is not None else 255
-        turns_left = self.turns_left
-        return pack(len(board), *board,
-                    len(miniwins), *miniwins,
-                    len(next_board), *next_board,
-                    winner, player, turns_left)
-
-    @staticmethod
-    def frombytes(bytes):
-        B = Board()
-        ptr = 0
-
-        n = bytes[ptr]; ptr += 1
-        board = bytes[ptr:ptr+n]; ptr += n
-        B._board = np.frombuffer(board)
-
-        n = bytes[ptr]; ptr += 1
-        miniwins = bytes[ptr:ptr+n]; ptr += n
-        B._miniwins = np.frombuffer(miniwins)
-
-        n = bytes[ptr]; ptr += 1
-        if n == 0:
-            B._next_board = None
-        else:
-            next_board = bytes[ptr:ptr+n]; ptr += n
-            B._next_board = tuple(map(int, next_board))
-
-        winner = ord(bytes[ptr]); ptr += 1
-        B.winner = winner if winner < 255 else None
-
-        player = ord(bytes[ptr]); ptr += 1
-        B.player = player if player < 255 else None
-
-        turns_left = ord(bytes[ptr]); ptr += 1
-        B.turns_left = turns_left
-
-        return B
-
 def board_iter(size):
     for r in range(size):
         for c in range(size):

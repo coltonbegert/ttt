@@ -47,8 +47,6 @@ class Client:
                 self._receive_move_request()
             elif header == 1:
                 self._receive_update()
-            elif header == 3:
-                self._receive_board()
             elif header == 4:
                 self._receive_player_id()
             elif header == 10:
@@ -98,20 +96,6 @@ class Client:
         last_move = tuple(p for p in last_move_data)
 
         self._bot.update(last_player, last_move)
-
-    def _receive_board(self):
-        """
-        BOARD:
-            0:  HEADER (3)
-            1:  SIZEOF(BOARD_STATE) // 256
-            2:  SIZEOF(BOARD_STATE) % 256
-            3:  BOARD_STATE (*)
-        """
-        return
-        hi = recv_int(self._client)
-        lo = recv_int(self._client)
-        size = hi*256 + lo
-        board = recv(self._client, size)
 
     def _receive_gameover(self):
         print("GAME OVER")
