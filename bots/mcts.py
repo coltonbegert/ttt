@@ -173,7 +173,7 @@ class Bot(BaseBot):
         # (turn 18 is the first turn in which a player can win)
         if self.board.turns_left < 64:
             board = self.board.clone()
-            dfs = self.dfs_check(board, max_depth=3)
+            dfs = self.dfs_check(board, max_depth=8)
             if dfs is not None:
                 path, options = dfs
                 conf = None
