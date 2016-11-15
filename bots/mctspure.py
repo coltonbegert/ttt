@@ -4,6 +4,7 @@ from time import time, sleep
 from random import choice, shuffle, randint, random
 import numpy as np
 import threading
+from simulations import mini_game
 
 class Bot(BaseBot):
     def setup(self, *args):
@@ -13,6 +14,9 @@ class Bot(BaseBot):
         self.thinking_time = 15
         self.min_searches = 1000
         self.max_searches = 50000
+
+        # Simulation mechanism
+        self.simulate = mini_game
 
         self.waiting = False
         self.lock = threading.Lock()
@@ -102,50 +106,9 @@ class Bot(BaseBot):
         score[0] += is_win
         score[1] += 1
 
-    def simulate(self, board):
-        # Run a single simulation, returning the player number of the victor
-        # or 0 for a tie
-        turns = 10
-
-        # Take a 1 move win always, if available,
-        # after each player has played about 15 moves
-        # (We can start picking after the 9th move, but the chances are low
-        # that this will be a successful strategy, so don't waste our precious
-        # simulation time doing that).
-        if board.turns_left < 50:
-            for move in board.get_valid():
-                B = board.clone()
-                B.move(*move)
-                if B.winner is not None and B.winner > 0: return B.winner
-
-        while board.winner is None and turns > 0:
-            options = board.get_valid()
-            board.move(*choice(options))
-            turns -= 1
-        if board.winner is not None:
-            return board.winner
-        state = board._miniwins
-        final_state = state + np.random.randint(1,3, state.shape)*(state==0)
-        for p in [1,2]:
-            for i in range(3):
-                if (final_state[:,i] == p).all():
-                    return p
-                if (final_state[i,:] == p).all():
-                    return p
-        if final_state[0,0] == final_state[1,1] == final_state[2,2]:
-            return final_state[1,1]
-        if final_state[2,0] == final_state[1,1] == final_state[0,2]:
-            return final_state[1,1]
-        return 0
-
     def scoring_function(self, const):
         # Return a function that can be used in sorting
         return lambda branch: self.confidence(branch, const)
-
-    def score_branch(self, branch):
-        # Prefer branches that have high confidence
-        # Break ties randomly
-        return self.confidence(branch), random()
 
     def confidence(self, branch, c):
         # UCB formula
