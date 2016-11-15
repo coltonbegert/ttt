@@ -1,12 +1,12 @@
 import bots.human
 import bots.random_bot
-import bots.mcts
-import bots.mctsplus
+import bots.mctscomplex
+import bots.mctspure
 
 def get_bot(name):
     return {
         'human': human.Bot,
         'random': random_bot.Bot,
-        'mcts': mcts.Bot,
-        'mctsplus': mctsplus.Bot
+        'mcts': mctspure.Bot,
+        'mctsplus': mctscomplex.Bot
     }[name]
