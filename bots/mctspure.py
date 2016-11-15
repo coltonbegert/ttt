@@ -26,6 +26,10 @@ class Bot(BaseBot):
         self.select_const = 1 # Const to use for UCB in MCTS.select
         self.picking_const = -1  # Const to use when picking a move to make
 
+        # Debugging
+        self.print_potential_moves = True
+        self.print_expected_moves = False
+
     def start(self):
         self.last_time = time()
         self.counter = 0
@@ -163,12 +167,13 @@ class Bot(BaseBot):
 
         print("\rOkay, I got it.")
 
-        print("-- Potential moves --")
-        for i,branch in enumerate(sorted(self.tree, key=self.scoring_function(self.picking_const), reverse=True)):
-            parent_score, score, move, subtree = branch
-            print("{:4s}".format(str(i+1)), move, "->", "{:12s}".format(str(score)),
-                  "{:.3f}".format(self.confidence(branch, self.select_const)),
-                    "({:.3f})".format(self.confidence(branch, self.picking_const)))
+        if self.print_potential_moves:
+            print("-- Potential moves --")
+            for i,branch in enumerate(sorted(self.tree, key=self.scoring_function(self.picking_const), reverse=True)):
+                parent_score, score, move, subtree = branch
+                print("{:4s}".format(str(i+1)), move, "->", "{:15s}".format(str(score)),
+                      "{:.3f}".format(self.confidence(branch, self.select_const)),
+                        "({:.3f})".format(self.confidence(branch, self.picking_const)))
 
         # Pick the move that is least likely to be a bad move
         branch = self.get_best(self.tree, self.picking_const)
@@ -189,7 +194,8 @@ class Bot(BaseBot):
         self.lock.acquire()
         self.waiting = False
 
-        if last_player != self.player:
+        # Print expected moves
+        if self.print_expected_moves and last_player != self.player:
             print("-- Expected moves --")
             for i,branch in enumerate(sorted(self.tree, key=self.scoring_function(self.picking_const), reverse=True)):
                 parent_score, score, move, subtree = branch
@@ -205,7 +211,7 @@ class Bot(BaseBot):
                 self.tree = subtree
                 break
 
-        if last_player != self.player:
+        if self.print_expected_moves and last_player != self.player:
             print()
             print("Opponent played {} with score {} and confidence {:.3f}".format(move, score, self.confidence(branch, self.picking_const)))
             print("  Root score was {}".format(parent_score))
