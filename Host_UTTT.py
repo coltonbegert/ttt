@@ -1,10 +1,11 @@
 import server
 import board
+import argparse
 
-def main():
+def main(host, port):
     with open('moves.dat', 'w') as f:
         B = BoardRecorder(f)
-        s = server.Server(B)
+        s = server.Server(B, host=host, port=port)
         try:
             s.start()
         finally:
@@ -22,4 +23,9 @@ class BoardRecorder(board.Board):
         self._file.write('({},{})\n'.format(row,col))
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description="Server module for Ultimate Tic-Tac-Toe")
+    parser.add_argument("--host", default=None, help="Hostname of the host module")
+    parser.add_argument("--port", type=int, default=11001, help="Port to communicate over")
+
+    args = parser.parse_args()
+    main(args.host, args.port)

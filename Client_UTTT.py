@@ -1,10 +1,11 @@
 import board
 import client
 import bots
+import argparse
 
-def main(bot):
+def main(bot, host, port, args):
     B = board.Board()
-    c = client.Client(make_bot(B, bot))
+    c = client.Client(make_bot(B, bot, args), host=host, port=port)
     try:
         c.start()
     finally:
@@ -13,15 +14,19 @@ def main(bot):
         print('########\n')
         c.close()
 
-def make_bot(board, bot):
+def make_bot(board, bot, args):
     def _make(player):
-        return bot(board, player, *sys.argv[2:])
+        return bot(board, player, *args)
     return _make
 
 if __name__ == '__main__':
-    import sys
-    if len(sys.argv) < 2:
-        print("\nUsage: python3 Client_UTTT.py bot_name [args]\n")
-        exit(1)
-    bot = bots.get_bot(sys.argv[1])
-    main(bot)
+    parser = argparse.ArgumentParser(description="Client module for Ultimate Tic-Tac-Toe")
+    parser.add_argument("bot_name", help="Name of the player or bot to use")
+    parser.add_argument("--host", default=None, help="Hostname of the host module")
+    parser.add_argument("--port", type=int, default=11001, help="Port to communicate over")
+    parser.add_argument("bot_args", nargs='*', help="Other arguments for the bot")
+
+    args = parser.parse_args()
+
+    bot = bots.get_bot(args.bot_name)
+    main(bot, args.host, args.port, args.bot_args)
