@@ -164,7 +164,7 @@ class Bot(BaseBot):
         print("\rOkay, I got it.")
 
         print("-- Potential moves --")
-        for i,branch in enumerate(sorted(self.tree, key=self.confidence, reverse=True)):
+        for i,branch in enumerate(sorted(self.tree, key=self.scoring_function(self.picking_const), reverse=True)):
             parent_score, score, move, subtree = branch
             print("{:4s}".format(str(i+1)), move, "->", "{:12s}".format(str(score)),
                   "{:.3f}".format(self.confidence(branch, self.select_const)),
@@ -191,7 +191,7 @@ class Bot(BaseBot):
 
         if last_player != self.player:
             print("-- Expected moves --")
-            for i,branch in enumerate(sorted(self.tree, key=self.confidence, reverse=True)):
+            for i,branch in enumerate(sorted(self.tree, key=self.scoring_function(self.picking_const), reverse=True)):
                 parent_score, score, move, subtree = branch
                 print("{:4s}".format(str(i+1)), move, "->", "{:12s}".format(str(score)),
                       "{:.3f}".format(self.confidence(branch, self.select_const)),
@@ -203,11 +203,13 @@ class Bot(BaseBot):
             if move == last_turn:
                 self.root_score = score
                 self.tree = subtree
+                break
 
-        print()
-        print("Opponent played {} with score {} and confidence {:.3f}".format(move, score, self.confidence(branch, self.picking_const)))
-        print("  Root score was {}".format(parent_score))
-        print()
+        if last_player != self.player:
+            print()
+            print("Opponent played {} with score {} and confidence {:.3f}".format(move, score, self.confidence(branch, self.picking_const)))
+            print("  Root score was {}".format(parent_score))
+            print()
 
         self.last_time = time()
         self.counter = 0

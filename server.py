@@ -73,7 +73,7 @@ class Server:
             self._board.move(*move)
 
             for sock in self._players:
-                self._send_update(sock, turn, move)
+                self._send_update(sock, player_num, move)
 
         self._board.pprint()
         if self._board.winner == 0:
