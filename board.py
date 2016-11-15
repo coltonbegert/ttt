@@ -6,6 +6,7 @@ class Board:
         self._board = np.zeros((9,9), dtype='uint8')
         self._miniwins = np.zeros((3,3), dtype='uint8')
         self._next_board = None
+        self._last_move = None
         self.winner = None
         self.player = 1
         self.turns_left = 81
@@ -18,6 +19,7 @@ class Board:
         B.winner = self.winner
         B.player = self.player
         B.turns_left = self.turns_left
+        B._last_move = self._last_move
         return B
 
     def move(self, row, col, player=None):
@@ -29,6 +31,8 @@ class Board:
         assert self._board[row, col] == 0, "That cell is taken"
         assert self._miniwins[br, bc] == 0, "That board already has a winner"
 
+        self._last_move = row, col
+
         self._board[row, col] = player
         self.turns_left -= 1
 
@@ -37,7 +41,10 @@ class Board:
         miniwin = winning_state(miniboard, player)
         if miniwin:
             self._miniwins[br, bc] = miniwin
-            self._next_board = None
+            if self._miniwins[mr, mc] == 0:
+                self._next_board = mr, mc
+            else:
+                self._next_board = None
             # Check if the main board has a win
             big_win = winning_state(self._miniwins, player)
             if big_win == player:
@@ -71,73 +78,97 @@ class Board:
             br, bc = self._next_board
             return [(br*3+r,bc*3+c) for r,c in board_iter(3) if self._board[br*3+r,bc*3+c] == 0]
 
-    def __repr__(self):
-        s = '\n'
+    def __repr__(self, lastmove=lambda s: s, miniwin=lambda s, w: s, active=lambda s: s):
+        s = '\n '
         for i in range(9):
             for j in range(9):
-                s += [' ','X','O'][self._board[i,j]]
+                if (i,j) == self._last_move:
+                    s += lastmove([' ','X','O'][self._board[i,j]])
+                else:
+                    s += [' ','X','O'][self._board[i,j]]
                 if j % 3 == 2:
                     s += ' '
                 elif j < 8:
-                    s += '|'
-            s += '\n'
+                    if self._miniwins[i//3,j//3]:
+                        s += miniwin('|', self._miniwins[i//3,j//3])
+                    else:
+                        if self._next_board == (i//3,j//3):
+                            s += active('|')
+                        else:
+                            s += '|'
+            s += '\n '
             if i % 3 == 2:
-                s += '\n'
+                s += '\n '
             else:
-                s += '-+-+- ' * 3 + '\n'
+                for k in range(3):
+                    if self._miniwins[i//3,k]:
+                        s += miniwin('-+-+- ', self._miniwins[i//3,k])
+                    else:
+                        if self._next_board == (i//3,k):
+                            s += active('-+-+- ')
+                        else:
+                            s += '-+-+- '
+                s += '\n '
         return s
+
+    def pprint(self, player=None):
+        """ Pretty representation """
+        lastmove = lambda s: '\033[1;33;50m{}\033[0;0;0m'.format(s)
+        if player is not None:
+            miniwin = lambda s,w: '\033[0;{};50m{}\033[0;0;0m'.format(31+(w==player),s)
+        else:
+            miniwin = lambda s,w: '\033[0;{};50m{}\033[0;0;0m'.format([37,36,35,30][w],s)
+        active = lambda s: '\033[1;33;50m{}\033[0;0;0m'.format(s)
+        print(self.__repr__(lastmove=lastmove, miniwin=miniwin, active=active))
+
+    def tobytes(self):
+        board = self._board.tobytes('C')
+        miniwins = self._miniwins.tobytes('C')
+        next_board = self._next_board if self._next_board is not None else tuple()
+        winner = self.winner if self.winner is not None else 255
+        player = self.player if self.player is not None else 255
+        turns_left = self.turns_left
+        return pack(len(board), *board,
+                    len(miniwins), *miniwins,
+                    len(next_board), *next_board,
+                    winner, player, turns_left)
+
+    @staticmethod
+    def frombytes(bytes):
+        B = Board()
+        ptr = 0
+
+        n = bytes[ptr]; ptr += 1
+        board = bytes[ptr:ptr+n]; ptr += n
+        B._board = np.frombuffer(board)
+
+        n = bytes[ptr]; ptr += 1
+        miniwins = bytes[ptr:ptr+n]; ptr += n
+        B._miniwins = np.frombuffer(miniwins)
+
+        n = bytes[ptr]; ptr += 1
+        if n == 0:
+            B._next_board = None
+        else:
+            next_board = bytes[ptr:ptr+n]; ptr += n
+            B._next_board = tuple(map(int, next_board))
+
+        winner = ord(bytes[ptr]); ptr += 1
+        B.winner = winner if winner < 255 else None
+
+        player = ord(bytes[ptr]); ptr += 1
+        B.player = player if player < 255 else None
+
+        turns_left = ord(bytes[ptr]); ptr += 1
+        B.turns_left = turns_left
+
+        return B
 
 def board_iter(size):
     for r in range(size):
         for c in range(size):
             yield r,c
 
-def play(outfile='moves.dat'):
-    # Allows humans to play
-    B = Board()
-    with open(outfile, 'w') as f:
-        while B.winner is None:
-            print("Player", B.player)
-            print(B)
-            if B._next_board is None:
-                br = get_input("Board row: ")
-                bc = get_input("Board col: ")
-            else:
-                br, bc = B._next_board
+def pack(*args):
+    return bytes(args)
 
-            print("Playing in board {}, {}".format(br, bc))
-
-            mr = get_input("Row: ")
-            mc = get_input("Col: ")
-
-            r = br*3 + mr
-            c = bc*3 + mc
-
-            try:
-                B.move(r,c, B.player)
-            except AssertionError as e:
-                print("##############")
-                print(e)
-                print("##############")
-                continue
-            # Write if the move was valid
-            f.write('({},{})\n'.format(r, c))
-
-    print("\n\n#########")
-    if B.winner:
-        print("Player", B.winner, "wins!")
-    else:
-        print("Game is a tie!")
-    print("#########")
-
-def get_input(prompt):
-    while True:
-        try:
-            return int(input(prompt))
-        except ValueError:
-            print("##############")
-            print("Invalid input")
-            print("##############")
-
-if __name__ == '__main__':
-    play()
