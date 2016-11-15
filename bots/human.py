@@ -1,8 +1,11 @@
 from bots.base_bot import BaseBot
 
 class Bot(BaseBot):
+    def start(self):
+        print("You are player", self.player)
+
     def request(self):
-        print("Player", self.board.player)
+        print("Your turn (Playing {})".format('?XO'[self.player]))
 
         while True:
             B = self.board.clone()
@@ -39,6 +42,15 @@ class Bot(BaseBot):
 
             print("Waiting for a response from your opponent...\n")
             return r,c
+
+    def on_update(self, last_player, last_move):
+        r,c = last_move
+        br,mr = divmod(r,3)
+        bc,mc = divmod(c,3)
+        move_m = mr, mc
+        move_b = br, bc
+        print("Opponent played {} in board {}".format(move_m, move_b))
+        self.board.pprint()
 
 def get_input(prompt):
     while True:
