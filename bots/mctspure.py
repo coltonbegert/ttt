@@ -32,7 +32,7 @@ class Bot(BaseBot):
 
         # Debugging
         self.print_potential_moves = True
-        self.print_expected_moves = False
+        self.print_expected_moves = True
 
     def start(self):
         self.last_time = time()
