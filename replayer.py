@@ -3,9 +3,12 @@ from time import sleep
 import sys
 
 # Replays a game of UTTT loaded from an input file
-def replay(infile, pretty_print=False, step_time=0, show_options=False):
+def replay(infile, pretty_print=False, show_options=False):
     B = Board()
+    moves = []
+    i = 0
     with open(infile) as f:
+        print("Reading file...")
         for line in f:
             line = line.strip()
             if not line: continue
@@ -13,8 +16,18 @@ def replay(infile, pretty_print=False, step_time=0, show_options=False):
             _,sr,_,sc,*_ = line
             r = int(sr)
             c = int(sc)
+            moves.append( (r,c) )
 
-            print("Player", B.player)
+        print("Press Enter to continue")
+        print("Press Control + C to go back")
+        print("Press Control + D to quit")
+        while True:
+            if i == len(moves):
+                print("Control + D to quit")
+            else:
+                r,c = moves[i]
+                B.move(r,c, B.player)
+                print("Player", B.player)
             if not pretty_print:
                 print(B)
             else:
@@ -23,11 +36,24 @@ def replay(infile, pretty_print=False, step_time=0, show_options=False):
             if show_options: print(B.get_valid())
 
             print("played ({},{})".format(r,c))
-            B.move(r,c, B.player)
 
-            sleep(step_time)
-
-    print(B)
+            try:
+                opt = input("\n>>> ").lower()
+            except EOFError:
+                break
+            except KeyboardInterrupt:
+                opt = 'b'
+                print('\r>>>     ')
+            if opt == 'b':
+                i = max(i-1, 0)
+                B = Board()
+                for move in moves[:i]:
+                    B.move(*move)
+            else:
+                i = min(i+1,len(moves))
+    for move in moves[i+1:]:
+        B.move(*move)
+    B.pprint()
     if B.winner:
         print("Winner: Player", B.winner)
     else:
@@ -39,4 +65,4 @@ if __name__ == '__main__':
     fname = 'moves.dat'
     if len(sys.argv) == 2:
         fname = sys.argv[-1]
-    replay(fname, True, 2, False)
+    replay(fname, True, False)
