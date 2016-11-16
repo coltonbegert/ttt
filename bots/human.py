@@ -44,13 +44,14 @@ class Bot(BaseBot):
             return r,c
 
     def on_update(self, last_player, last_move):
-        r,c = last_move
-        br,mr = divmod(r,3)
-        bc,mc = divmod(c,3)
-        move_m = mr, mc
-        move_b = br, bc
-        print("Opponent played {} in board {}".format(move_m, move_b))
-        self.board.pprint()
+        if last_player != self.player:
+            r,c = last_move
+            br,mr = divmod(r,3)
+            bc,mc = divmod(c,3)
+            move_m = mr, mc
+            move_b = br, bc
+            print("Opponent played {} in board {}".format(move_m, move_b))
+            self.board.pprint()
 
 def get_input(prompt):
     while True:
