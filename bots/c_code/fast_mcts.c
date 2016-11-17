@@ -9,7 +9,6 @@
  * as a regular module.
  */
 
-#include <python3.5/Python.h>
 #include <stdlib.h>
 #include <time.h>
 

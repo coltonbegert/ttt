@@ -1,6 +1,13 @@
 # ttt
 ti-tac-toe solver for cmput 396
 
+# Dependencies
+
+* python3   (Tested on >= 3.5)
+* python3-numpy
+* python3.5-dev
+* python3-setuptools
+
 # Usage
 
 First, run a server instance using:
@@ -15,10 +22,18 @@ where <client_name> is a name of a bot:
 
 * human     - Human player
 * mcts      - Pure MCTS implementation
-* mctsplus  - Nasty MCTS with tweaks that may or may not help
+* mctsplus  - Nasty MCTS with tweaks that may or may not help (deprecated)
+* fast      - Compiled C implementation of mcts
 * random    - Random player (for testing)
 
 The client and host run on INET sockets over port 11001.
+
+To run using the 'fast' bot, you need to install the package.
+The most painless way to do this is by running:
+
+    python3 setup.py build_ext --inplace
+
+This will make a local-only copy that is easy to change later.
 
 # Replayer
 
