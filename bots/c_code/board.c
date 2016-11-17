@@ -6,7 +6,7 @@
  */
 
 #define _uttt_lock(x) pthread_mutex_lock(&x->lock)
-#define _uttt_unlock(x) pthread_mutex_lock(&x->lock)
+#define _uttt_unlock(x) pthread_mutex_unlock(&x->lock)
 
 #include "board.h"
 #include <pthread.h>
@@ -45,11 +45,9 @@ void _uttt_apply_move(board_t* board, int row, int col) {
     board->miniwins[br][bc] = miniwin;
 
     if (miniwin >= 0) {
-        printf("--> Miniwin for player %d\n", miniwin);
         int winner = _uttt_check_win(board);
         board->winner = winner;
         if (winner >= 0) {
-            printf("--> Win for player %d\n", winner);
             board->turns_left = 0;
         }
     }
@@ -93,7 +91,7 @@ int _uttt_check_miniwin(board_t* board, int row, int col, int player) {
         return player;
 
     // Check diagonal
-    if (mr == 1 || mc == 1) {
+    if (mr == 1 && mc == 1) {
         // If played in center, check opposite corners
         if (board->board[3*br][3*bc] == player &&
                 board->board[3*br+2][3*bc+2] == player)
@@ -101,11 +99,11 @@ int _uttt_check_miniwin(board_t* board, int row, int col, int player) {
         if (board->board[3*br+2][3*bc] == player &&
                 board->board[3*br][3*bc+2] == player)
             return player;
-    } else {
+    } else if (mr != 1 && mc != 1) {
         // If played in corner, check the center next
         if (board->board[3*br+1][3*bc+1] == player) {
             // ...then check the other corner
-            if (board->board[3*br+mr^2][3*bc+mc^2] == player)
+            if (board->board[3*br+(mr^2)][3*bc+(mc^2)] == player)
                 return player;
         }
     }
@@ -138,7 +136,6 @@ int uttt_get_valid(board_t* board, int* buffer) {
     }
     // If last move puts you in a miniwin
     if (board->miniwins[r%3][c%3] >= 0) {
-        printf("--> Getting all available moves\n");
         for (int i = 0; i < 9; i++) {
             for (int j = 0; j < 9; j++) {
                 // Skip miniwinss that have already ended
@@ -152,7 +149,6 @@ int uttt_get_valid(board_t* board, int* buffer) {
     } else {
         int br = r % 3;
         int bc = c % 3;
-        printf("--> Getting moves from board %d, %d\n", br,bc);
         for (int i = 3*br; i < 3*(br+1); i++) {
             for (int j = 3*bc; j < 3*(bc+1); j++) {
                 if (board->board[i][j] == 0)
@@ -217,6 +213,18 @@ void uttt_print(board_t *board) {
 
     char buffer[200];
 
+    
+    int active_row = -1;
+    int active_col = -1;
+    if (board->turns_left < 81) {
+        int arow = board->last_row % 3;
+        int acol = board->last_col % 3;
+        if (board->miniwins[arow][acol] < 0) {
+            active_row = arow;
+            active_col = acol;
+        }
+    }
+
     for (int br = 0; br < 3; br++){
         for (int mr = 0; mr < 3; mr++){
             for (int bc = 0; bc < 3; bc++){
@@ -235,9 +243,14 @@ void uttt_print(board_t *board) {
 
                     if (mc < 2) {
                         int miniwin = board->miniwins[br][bc]+1;
-                        if (miniwin < 0)
-                            printf("|");
-                        else {
+                        if (miniwin == 0) {
+                            if (br == active_row && bc == active_col) {
+                                sprintf(buffer, "|");
+                                printf(ACTIVE, buffer);
+                            } else {
+                                printf("|");
+                            }
+                        } else {
                             sprintf(buffer, "|");
                             printf(colors[miniwin], buffer);
                         }
@@ -248,9 +261,14 @@ void uttt_print(board_t *board) {
             if (mr < 2) {
                 for (int bc = 0; bc < 3; bc++) {
                     int miniwin = board->miniwins[br][bc]+1;
-                    if (miniwin < 0)
-                        printf(" -+-+-");
-                    else {
+                    if (miniwin == 0) {
+                        if (br == active_row && bc == active_col) {
+                            sprintf(buffer, " -+-+-");
+                            printf(ACTIVE, buffer);
+                        } else {
+                            printf(" -+-+-");
+                        }
+                    } else {
                         sprintf(buffer, " -+-+-");
                         printf(colors[miniwin], buffer);
                     }

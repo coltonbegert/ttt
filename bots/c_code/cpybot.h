@@ -26,10 +26,10 @@ typedef struct {
 
 // NOTE: Implement the following methods in YOUR code
 void setup(int argc, char** argv);
-void start();
-void stop();
+void start(void);
+void stop(void);
 void update(int last_player, move_t last_move);
-move_t request();
+move_t request(void);
 
 // The methods below adapt the python client to the C code.
 static PyObject* _pybot_setup(PyObject* self, PyObject* args);
