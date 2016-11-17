@@ -27,11 +27,9 @@ void uttt_init(board_t* board) {
     _uttt_unlock(board);
 }
 
-// clones a board into memory. Only locks the source
+// clones a board into memory.
 void uttt_clone(board_t* board, board_t* target) {
-    _uttt_lock(board);
     memcpy(target, board, sizeof(board_t));
-    _uttt_unlock(board);
 }
 
 void _uttt_apply_move(board_t* board, int row, int col) {
