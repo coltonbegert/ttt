@@ -73,10 +73,15 @@ class Client:
             1: ID (int)
         """
         if self._bot is None:
+            print("Initializing bot...")
             player = recv_int(self._client)
             self._bot = self._bot_const(player)
             self._id = player
             self._bot.start()
+
+            print("Telling the server we're ready")
+            self._send_ack()
+
             print("Bot initialized successfully!")
             print("You are player", player)
         else:
@@ -118,6 +123,14 @@ class Client:
             2:  OPTION (int)
         """
         packet = pack(2, len(move), *move)
+        send(self._client, packet)
+
+    def _send_ack(self):
+        """
+        ACK
+            0:  HEADER (200)
+        """
+        packet = pack(200)
         send(self._client, packet)
 
     def close(self):

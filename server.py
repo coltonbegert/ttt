@@ -88,16 +88,29 @@ class Server:
         self.close()
 
     def _connect(self):
-        count = 0
+        count = 1
         while len(self._players) != 2:
             print("Waiting for player", len(self._players)+1, "...", end=' ',flush=True)
-            (client, address) = self._server.accept()
-            self._players.append(client)
-            self._addresses.append(address)
 
-            count += 1
-            self._send_player_id(client, count)
-            print("Success!")
+            (client, address) = self._server.accept()
+            try:
+                self._send_player_id(client, count)
+
+                if self._receive_ack(client):
+                    self._players.append(client)
+                    self._addresses.append(address)
+
+                    count += 1
+                    print("Success!")
+                else:
+                    print("Failed.")
+                    client.shutdown(socket.SHUT_RDWR)
+                    client.close()
+            except ConnectionError as e:
+                print("Failed:", e)
+                client.shutdown(socket.SHUT_RDWR)
+                client.close()
+                continue
 
     def _send_player_id(self, sock, num):
         """
@@ -136,6 +149,15 @@ class Server:
         packet = pack(10, winner)
         send(sock, packet)
 
+    def _receive_ack(self, sock):
+        """
+        ACK:
+            0: HEADER (200)
+        """
+        header = recv_int(sock)
+        if header != 200: return False
+        return True
+
     def _receive_move(self, sock):
         """
         MOVE:
@@ -151,7 +173,7 @@ class Server:
 
     def close(self):
         if not self._closed:
-            self._server.shutdown(0)
+            self._server.shutdown(socket.SHUT_RDWR)
             self._server.close()
         self._closed = True
 

@@ -6,7 +6,7 @@ def send(sock, packet):
     while totalsent < len(packet):
         sent = sock.send(packet[totalsent:])
         if sent == 0:
-            raise RuntimeError("Socket output stream broken")
+            raise ConnectionError("Socket output stream broken")
         totalsent += sent
 
 def recv(sock, N):
@@ -16,7 +16,7 @@ def recv(sock, N):
     while totalrecv < N:
         chunk = sock.recv(min(N - totalrecv, 2048))
         if chunk == b'' or not chunk:
-            raise RuntimeError("Socket input stream broken")
+            raise ConnectionError("Socket input stream broken")
         chunks.append(chunk)
         totalrecv += len(chunk)
     return b''.join(chunks)
