@@ -8,6 +8,7 @@
  * It is designed to by imported by python and called
  * as a regular module.
  */
+#define MIN_SEARCHES 500000
 
 #include "fast_mcts.h"
 
@@ -23,16 +24,17 @@ static board_t board;
 static tree_node_t* tree;
 
 int searches = 0;
+int num_states = 0;
 
 void setup(int argc, char** argv) {
 	uttt_init(&board);
     
     tree = malloc(sizeof(tree_node_t));
     tree->player = board.player;
-    tree->mean = 0.5;
+    tree->mean = 0.0f;
     tree->children = NULL;
     tree->num_children = 0;
-    tree->visits = 1;
+    tree->visits = 0;
     tree->parent = NULL;
 
 	srand(time(NULL));
@@ -46,16 +48,39 @@ void stop() {
 void update(int last_player, move_t last_move) {
     stop_threads();
 
+    if (board.player != last_player)
+        printf("ERROR: Did not simulate the right board\n");
+
 	uttt_move(&board, last_move.row, last_move.col);
-	uttt_print(&board);
 
     tree_node_t* new_tree = find_node(tree, last_move.row, last_move.col);
+    if (new_tree == NULL) {
+        printf("Could not find child (pruned?). Creating new branch\n");
 
-    for (int i=0; i<tree->num_children; i++) {
+        new_tree = malloc(sizeof(tree_node_t));
+        new_tree->player = board.player;
+        new_tree->mean = 0.0f;
+        new_tree->children = NULL;
+        new_tree->num_children = 0;
+        new_tree->visits = 0;
+        new_tree->parent = NULL;
+
+    }
+
+    if (board.player != new_tree->player)
+        printf("ERROR: Did not predict the right player. Expected %d, got %d\n", board.player, new_tree->player);
+
+    int old_states = num_states;
+    int N = tree->num_children;
+    for (int i=0; i<N; i++) {
         if (new_tree != tree->children[i]) {
-            free(tree->children[i]);
+            cut_branch(tree->children[i]);
         }
     }
+    if (tree->num_children != 1)
+        printf("ERROR: tree has %d children instead of 1\n", tree->num_children);
+    printf("    Cutting branches: %d states -> ", old_states);
+    printf("    %d states\n", num_states);
 
     free(tree->children);
     free(tree);
@@ -65,10 +90,19 @@ void update(int last_player, move_t last_move) {
     start_threads();
 }
 move_t request() { 
-    while (searches < 100000) sleep(1);
+    while (searches < MIN_SEARCHES) {
+        printf("Still thinking.  \r");
+        usleep(100000);
+        printf("Still thinking.. \r");
+        usleep(100000);
+        printf("Still thinking...\r");
+        usleep(100000);
+    }
     stop_threads();
 
+    printf("Getting best...\n");
     tree_node_t* node = pick_best(tree);
+    printf("Found move.\n");
     move_t move;
     move.row = node->row;
     move.col = node->col;
@@ -96,17 +130,17 @@ void* worker( void* argument ) {
     int winner;
     board_t board_copy;
 
-    while (working &&) {
+    while (working) {
         uttt_clone(&board, &board_copy);
         // MCTS
         selection(&board_copy, tree, &leaf);
         int player = board_copy.player;
-        expand(&board_copy, leaf, &node);
+        num_states += expand(&board_copy, leaf, &node);
         winner = simulate(&board_copy);
         backprop(player, winner, node);
 
         if (++searches % 20000 == 0) {
-            prune();
+            prune(tree);
         }
     }
     return NULL;
@@ -130,8 +164,7 @@ tree_node_t* find_node(tree_node_t* parent, int row, int col) {
         child = parent->children[i];
         if (child->row == row && child->col == col) return child;
     }
-    printf("ERROR: Could not find child\n");
-    exit(EXIT_FAILURE);
+    printf("Warning: Could not find child\n");
     return NULL;
 }
 
@@ -140,6 +173,7 @@ tree_node_t* pick_best(tree_node_t* parent) {
     int best = 0;
     float best_score = -INFINITY;
     float score;
+    printf("Picking best choice of %d nodes\n", parent->num_children);
     for (int i = 0; i < parent->num_children; i++) {
         child = parent->children[i];
         score = lct(child->mean, child->visits, parent->visits);
@@ -194,7 +228,8 @@ int expand(board_t* game, tree_node_t* leaf, tree_node_t** node) {
 
         tree_node_t* child = malloc(sizeof(tree_node_t));
 
-        child->player = game->player;
+        // NOTE: wtf?
+        child->player = 3^game->player;
         child->num_children = 0;
         child->children = NULL;
         child->mean = 0.0f;
@@ -267,11 +302,67 @@ void stop_threads(void) {
 }
 
 // Wipe out really bad tree values to save memory
-void prune() {
-    // TODO
+void prune(tree_node_t* branch) {
+    return;
+    if (branch->num_children == 0)
+        return;
+
+    int old_states = num_states;
+    float best_lcb = -INFINITY;
+    float worst_ucb = INFINITY;
+
+    float lower;
+    float upper;
+    tree_node_t* child;
+    tree_node_t* best;
+    tree_node_t* worst;
+    int pos = 0;
+    for (int i = 0; i < branch->num_children; i++) {
+        child = branch->children[i];
+        lower = lct(child->mean, child->visits, branch->visits);
+        upper = uct(child->mean, child->visits, branch->visits);
+
+        if (lower > best_lcb) {
+            best_lcb = lower;
+            best = child;
+        }
+        if (upper < worst_ucb) {
+            worst_ucb = upper;
+            worst = child;
+            pos = i;
+        }
+    }
+
+    // If the best option is significantly better
+    // than the worst option, delete the branch entirely.
+    if (best_lcb > worst_ucb) {
+        cut_branch(worst);
+        branch->num_children -= 1;
+        // Shift the children to fill the gap
+        for (int i = pos; i < branch->num_children; i++) {
+            branch->children[i] = branch->children[i+1];
+        }
+    }
+    // Prune each child, too
+    for (int i = 0; i < branch->num_children; i++) {
+        prune(branch->children[i]);
+    }
 }
 
 // Properly remove a child and all of its descendents
 void cut_branch(tree_node_t* branch) {
-    // TODO
+    if (branch == NULL) return;
+
+    if (branch->num_children > 0) {
+        int N = branch->num_children;
+        for (int i=0; i < N; i++) {
+            cut_branch(branch->children[i]);
+        }
+        if (branch->num_children > 0)
+            printf("ERROR: branch did not delete all its children\n");
+    }
+    num_states--;
+    if (branch->parent != NULL) branch->parent->num_children--;
+    if (branch->children != NULL) free(branch->children);
+    free(branch);
 }

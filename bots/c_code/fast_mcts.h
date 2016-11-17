@@ -39,6 +39,7 @@ void selection(board_t* board, tree_node_t* tree, tree_node_t** leaf);
 int expand(board_t* board, tree_node_t* leaf, tree_node_t** node);
 int simulate(board_t* board);
 void backprop(int player, int winner, tree_node_t* leaf);
-void prune();
+void prune(tree_node_t* branch);
+void cut_branch(tree_node_t* branch);
 
 #endif /* !FAST_MCTS_H */

@@ -5,8 +5,8 @@
  * Distributed under terms of the MIT license.
  */
 
-#define _uttt_lock(x) pthread_mutex_lock(&x->lock)
-#define _uttt_unlock(x) pthread_mutex_unlock(&x->lock)
+#define _uttt_lock(x) pthread_mutex_lock(&x->lock);
+#define _uttt_unlock(x) pthread_mutex_unlock(&x->lock);
 
 #include "board.h"
 #include <pthread.h>
@@ -16,7 +16,6 @@
 
 // Given a pointer to allocated memory holding a board
 void uttt_init(board_t* board) {
-    _uttt_lock(board);
     memset(&board->board, 0, sizeof(board->board));
     memset(&board->miniwins, -1, sizeof(board->miniwins));
     board->last_row = -1;
@@ -24,7 +23,6 @@ void uttt_init(board_t* board) {
     board->turns_left = 81;
     board->player = 1;
     board->winner = -1;
-    _uttt_unlock(board);
 }
 
 // clones a board into memory.
