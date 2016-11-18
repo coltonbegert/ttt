@@ -24,8 +24,7 @@ typedef struct tree_node_t {
     struct tree_node_t** children;
 } tree_node_t;
 
-float lct(float mean, int visits, int total_visits);
-float uct(float mean, int visits, int total_visits);
+float uct(float mean, int visits, int total_visits, const float coeff);
 
 void* worker(void* args);
 void start_threads(void);
@@ -33,13 +32,15 @@ void stop_threads(void);
 
 tree_node_t* find_node(tree_node_t* node, int row, int col);
 tree_node_t* pick_best(tree_node_t* node);
-tree_node_t* select_best(tree_node_t* node);
+tree_node_t* select_best(tree_node_t* node, float coeff);
 
 void selection(board_t* board, tree_node_t* tree, tree_node_t** leaf);
 int expand(board_t* board, tree_node_t* leaf, tree_node_t** node);
 int simulate(board_t* board);
 void backprop(int player, int winner, tree_node_t* leaf);
 void prune(tree_node_t* branch);
-void cut_branch(tree_node_t* branch);
+int cut_branch(tree_node_t* branch);
+
+void show_choices(tree_node_t* branch);
 
 #endif /* !FAST_MCTS_H */
