@@ -185,7 +185,7 @@ class Bot(BaseBot):
                 else:
                     print("This seems good...")
                 sleep(2)
-                    
+
                 if conf:
                     print("Choosing move {} with confidence {:.3f}".format(move, conf))
                 else:

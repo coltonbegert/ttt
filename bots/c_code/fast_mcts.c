@@ -8,13 +8,18 @@
  * It is designed to by imported by python and called
  * as a regular module.
  */
-#define MIN_SEARCHES 10000
+#define MIN_SEARCHES 100000
 #define MAX_STATES 10000000
 #define TIMEOUT 30
+
 #define UCB_CONST 1
 #define LCB_CONST -1
-#define PICK_CONST -.5
+#define PICK_CONST 0
 #define SELECT_CONST 1
+
+#define MIN_PRUNE_VISITS 50000
+#define MIN_CUT_VISITS 10000
+#define PRUNE_TIMER 100000
 
 #include "fast_mcts.h"
 
@@ -43,6 +48,8 @@ int count_children(tree_node_t* node) {
 }
 
 void setup(int argc, char** argv) {
+    srand(time(NULL));
+
 	uttt_init(&board);
     
     tree = malloc(sizeof(tree_node_t));
@@ -77,14 +84,14 @@ void update(int last_player, move_t last_move) {
 
     show_choices(tree);
 
-	uttt_move(&board, last_move.row, last_move.col);
-
     tree_node_t* node = find_node(tree, last_move.row, last_move.col);
     if (node == NULL) {
-        printf("\n#####\n");
-        printf("Could not find child (pruned?). Creating new branch\n");
-        printf("Chopping down the tree\n");
-        printf("#####\n\n");
+        printf("\n##########\n");
+        printf("Got very surprising move!!\n\n");
+        printf("Did not expect (%d, %d) to be a good move (pruned).\n",
+                last_move.row, last_move.col);
+        printf("Chopping down the search tree and restarting\n");
+        printf("###########\n\n");
 
         node = malloc(sizeof(tree_node_t));
         num_states++;
@@ -103,7 +110,7 @@ void update(int last_player, move_t last_move) {
         printf("\nMove selected was (%d, %d) with confidence %.3f",
                 last_move.row, last_move.col, conf);
 
-        printf("    Visited node %d times\n", node->visits);
+        printf("\n\t-->Visited node %d times\n", node->visits);
 
         int N = tree->num_children;
         for (int i=0; i<N; i++) {
@@ -117,28 +124,30 @@ void update(int last_player, move_t last_move) {
         num_states--;
     }
 
-    printf(" Cut %d states (%d->%d)\n", cut, old_states, num_states);
+    printf(" Cut %d states (%d->%d) [%.2f%% misprediction rate]\n",
+            cut, old_states, num_states, 100.0*cut / old_states);
+
+    tree = node;
+    tree->parent = NULL;
 
     if (board.player != node->player)
         printf("ERROR: Did not predict the right player. Expected %d, got %d\n", board.player, node->player);
 
-    tree = node;
-    tree->parent = NULL;
+	uttt_move(&board, last_move.row, last_move.col);
 
     start_threads();
 }
 move_t request() { 
     int timeout = 0;
+    printf("Thinking...\r");
+    fflush(stdout);
     while (timeout++ < TIMEOUT && num_states < MAX_STATES && searches < MIN_SEARCHES) {
-        printf("Still thinking.  \r");
-        fflush(stdout);
-        usleep(333333);
-        printf("Still thinking.. \r");
-        fflush(stdout);
-        usleep(333333);
-        printf("Still thinking...\r");
-        fflush(stdout);
         usleep(333334);
+    }
+    if (timeout < TIMEOUT) {
+        printf("Timed out.\n");
+    } else {
+        printf("OK.\n");
     }
     stop_threads();
 
@@ -168,7 +177,6 @@ void* worker( void* argument ) {
     int winner;
     board_t board_copy;
 
-    // FIXME: loops forever if num_states >= MAX_STATES
     while (working && num_states < MAX_STATES) {
         uttt_clone(&board, &board_copy);
         // MCTS
@@ -178,7 +186,7 @@ void* worker( void* argument ) {
         winner = simulate(&board_copy);
         backprop(player, winner, node);
         
-        if (++searches % 50000 == 0) {
+        if (++searches % PRUNE_TIMER == 0) {
             prune(tree);
         }
     }
@@ -228,43 +236,43 @@ void selection(board_t* game, tree_node_t* tree, tree_node_t** node) {
 int expand(board_t* game, tree_node_t* leaf, tree_node_t** node) {
     int options[81];
     int N = uttt_get_valid(game, options);
-    
-    if (N == 0) {
-        return 0;
+
+    if (N > 0) {
+        leaf->num_children = N;
+        leaf->children = calloc(N, sizeof(tree_node_t*));
+
+        int row, col;
+        for (int i = 0; i < N; i++) {
+            uttt_raw_to_rowcol(options[i], &row, &col);
+
+            tree_node_t* child = malloc(sizeof(tree_node_t));
+            num_states++;
+
+            child->player = game->player;
+            child->num_children = 0;
+            child->children = NULL;
+            child->mean = 0.0f;
+            child->visits = 0;
+            child->parent = leaf;
+            child->row = row;
+            child->col = col;
+            
+            leaf->children[i] = child;
+        }
+
+        *node = leaf->children[rand()%N];
+        uttt_move(game, (*node)->row, (*node)->col);
     }
-    leaf->num_children = N;
-    leaf->children = calloc(N, sizeof(tree_node_t*));
 
-    int row, col;
-    for (int i = 0; i < N; i++) {
-        uttt_raw_to_rowcol(options[i], &row, &col);
-
-        tree_node_t* child = malloc(sizeof(tree_node_t));
-        num_states++;
-
-        child->player = game->player;
-        child->num_children = 0;
-        child->children = NULL;
-        child->mean = 0.0f;
-        child->visits = 0;
-        child->parent = leaf;
-        child->row = row;
-        child->col = col;
-        
-        leaf->children[i] = child;
-    }
-
-    *node = leaf->children[rand()%N];
-    uttt_move(game, (*node)->row, (*node)->col);
-
-    return N;
+    return game->winner;
 }
 
 int simulate(board_t* game) {
-    srand(time(NULL));
+    if (game->turns_left == 0) return game->winner;
     int options[81];
     int row, col;
     int n = uttt_get_valid(game, options);
+
     for (int i = 0; i < n; i++) {
         board_t test;
         uttt_clone(game, &test);
@@ -292,7 +300,7 @@ void backprop(int player, int winner, tree_node_t* node) {
     } else {
         // Backprop winner/loser
         while (node != NULL) {
-            int amtP = winner == node->player ? 1 : 0;
+            int amtP = winner == node->player ? 1 : -1;
             node->visits++;
             node->mean += (amtP - node->mean) / node->visits;
             node = node->parent;
@@ -326,7 +334,10 @@ void stop_threads(void) {
 
 // Wipe out really bad tree values to save memory
 void prune(tree_node_t* branch) {
+    return;
     if (branch->num_children == 0)
+        return;
+    if (branch->visits < MIN_PRUNE_VISITS)
         return;
 
     float best_lcb = -INFINITY;
@@ -342,6 +353,8 @@ void prune(tree_node_t* branch) {
         lower = uct(child->mean, child->visits, branch->visits, LCB_CONST);
         upper = uct(child->mean, child->visits, branch->visits, UCB_CONST);
 
+        if (child->visits < MIN_CUT_VISITS)
+            continue;
         if (lower > best_lcb) {
             best_lcb = lower;
         }

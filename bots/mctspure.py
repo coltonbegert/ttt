@@ -126,9 +126,9 @@ class Bot(BaseBot):
         while self.counter < self.max_searches and time() - self.last_time < self.thinking_time:
             sleep(.5)
             m = int(time()%4)
-            print('\rHmm', '.'*m, ' '*(4-m), end='', flush=True)
+            print('Hmm...', end='\r', flush=True)
 
-        print("\rOkay, I got it.")
+        print("Okay, I got it.")
 
         if self.print_potential_moves:
             print("-- Potential moves --")
