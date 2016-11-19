@@ -45,6 +45,7 @@ void _uttt_apply_move(board_t* board, int row, int col) {
         board->winner = winner;
         if (winner >= 0) {
             board->turns_left = 0;
+            return;
         }
     }
 

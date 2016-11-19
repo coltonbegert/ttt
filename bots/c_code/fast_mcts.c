@@ -8,18 +8,71 @@
  * It is designed to by imported by python and called
  * as a regular module.
  */
-#define MIN_SEARCHES 100000
-#define MAX_STATES 10000000
+
+// Basic settings of the search program
+// MAX_STATES limits the amount of memory it uses,
+// A state uses about 16 Bytes of memory. Using a value
+// that is too high may slow down the pruning process. If you
+// increase this number significantly, consider disabling
+// pruning.
+// Expect about 10,000,000 per GB
+// TIMEOUT prevents the bot from spending too long thinking
+//  (does not count pruning time)
+// MIN_SEARCHES ensures the bot considered enough options
+#define MIN_SEARCHES 1000000
+#define MAX_STATES 1000000
 #define TIMEOUT 30
 
+// Coefficients for different calculations of UCT
+// UCB_CONST and LCB_CONST are used for printing statistics
+// PICK_CONST is the value to use when picking a move
+// SELECT_CONST is the value to use in MCTS selection step
 #define UCB_CONST 1
 #define LCB_CONST -1
-#define PICK_CONST 0
-#define SELECT_CONST 1
+#define PICK_CONST -0.1
+#define SELECT_CONST 1.414
 
-#define MIN_PRUNE_VISITS 50000
-#define MIN_CUT_VISITS 10000
-#define PRUNE_TIMER 100000
+// ** Simulation **
+// Using a random roll simulation is fast enough for many
+// evaluations, but some heuristics can greatly improve the
+// accuracy of the statistics
+
+// Rapid Simulate (Simulation)
+// Use a heuristic on the first RAPID_SEARCHES iterations
+// This greatly improves the statistics with low cost
+// but the heuristic may be innacurate.
+#define RAPID_SEARCHES 100000
+
+// ** Pruning **
+// Pruning allows the bot to consider more states with
+// finite amount of memory. If the opponent is quick enough,
+// we'll usually cut away the tree before it matters. But
+// it can still help to remove moves that are unlikely to
+// ever be influential from the board to improve search efficiency.
+// If pruning is not effective during a search, it is canceled
+// until stop_threads is called. This allows the values that
+// exist to be improved more frequently by visits to simulations.
+
+// Low-Confidence Removal (Pruning)
+// Removes moves that have a low chance of winning
+// based on the available stats.
+// Based on hypothesis testing. If a move's upper-confidence
+// bound does not capture the lower confidence bound of the
+// best move, it is rejected and all of its children are
+// evicted from the tree.
+// Fast but not guaranteed to be safe.
+#define USB_LCR_PRUNING 1
+#define SIG_UCB_CONST 0.95
+#define SIG_LCB_CONST -0.95
+#define MIN_CUT_VISITS 2000
+
+// Alpha-Beta Pruning (Pruning)
+// Slow but guaranteed to produce good trees.
+// Propogates in a bottom-up fashion.
+// Might delete valuable search results if the
+// opponent does not play perfectly.
+#define USB_AB_PRUNING 1
+#define AB_MIN_TURNS_LEFT 50
 
 #include "fast_mcts.h"
 
@@ -35,6 +88,7 @@ static board_t board;
 static tree_node_t* tree;
 
 int searches = 0;
+int num_sims = 0;
 int num_states = 0;
 
 int count_children(tree_node_t* node) {
@@ -55,10 +109,11 @@ void setup(int argc, char** argv) {
     tree = malloc(sizeof(tree_node_t));
     num_states++;
 
+    tree->is_win = 0;
     tree->player = board.player;
     tree->mean = 0.0f;
     tree->children = NULL;
-    tree->num_children = 0;
+    tree->num_children = -1;
     tree->visits = 0;
     tree->parent = NULL;
 
@@ -96,10 +151,11 @@ void update(int last_player, move_t last_move) {
         node = malloc(sizeof(tree_node_t));
         num_states++;
 
+        node->is_win = 0;
         node->player = board.player;
         node->mean = 0.0f;
         node->children = NULL;
-        node->num_children = 0;
+        node->num_children = -1;
         node->visits = 0;
         node->parent = NULL;
 
@@ -177,17 +233,54 @@ void* worker( void* argument ) {
     int winner;
     board_t board_copy;
 
-    while (working && num_states < MAX_STATES) {
+    int use_ab = USB_AB_PRUNING;
+    int use_lcr = USB_LCR_PRUNING;
+    int can_prune = use_ab || use_lcr;
+
+    while (working) {
+        searches++;
         uttt_clone(&board, &board_copy);
-        // MCTS
+        // MCTS with pruning
+        // ** Selection **
         selection(&board_copy, tree, &leaf);
+        // ** Expansion **
         int player = board_copy.player;
-        expand(&board_copy, leaf, &node);
-        winner = simulate(&board_copy);
+        if (num_states < MAX_STATES)
+            expand(&board_copy, leaf, &node);
+        else
+            node = leaf;
+        // ** Simulation **
+        if (searches < RAPID_SEARCHES) { 
+            winner = rapid_simulate(&board_copy);
+            num_sims++;
+        } else {
+            winner = simulate(&board_copy);
+            num_sims++;
+        }
+        // ** Backprop **
         backprop(player, winner, node);
         
-        if (++searches % PRUNE_TIMER == 0) {
-            prune(tree);
+        // ** Pruning **
+        if (can_prune && num_states > MAX_STATES) {
+            int old_states = num_states;
+            printf("Pruning...\n");
+
+            int pruned;
+
+            // Try alpha-beta pruning
+            pruned = prune(tree, &board);
+            printf("--> AB-Pruned %d nodes.\n", pruned);
+            if (pruned == 0) use_ab = 0;
+
+            pruned = remove_low_conf(tree);
+            printf("--> Low-Conf Pruned %d nodes.\n", pruned);
+            if (pruned == 0) use_lcr = 0;
+
+            printf("Reduced from  %d -> %d\n", old_states, num_states);
+            can_prune = use_ab || use_lcr;
+            if (!can_prune) {
+                printf("** Giving up on pruning.\n");
+            }
         }
     }
     return NULL;
@@ -237,6 +330,7 @@ int expand(board_t* game, tree_node_t* leaf, tree_node_t** node) {
     int options[81];
     int N = uttt_get_valid(game, options);
 
+    *node = leaf;
     if (N > 0) {
         leaf->num_children = N;
         leaf->children = calloc(N, sizeof(tree_node_t*));
@@ -248,8 +342,9 @@ int expand(board_t* game, tree_node_t* leaf, tree_node_t** node) {
             tree_node_t* child = malloc(sizeof(tree_node_t));
             num_states++;
 
+            child->is_win = 0;
             child->player = game->player;
-            child->num_children = 0;
+            child->num_children = -1;
             child->children = NULL;
             child->mean = 0.0f;
             child->visits = 0;
@@ -267,6 +362,26 @@ int expand(board_t* game, tree_node_t* leaf, tree_node_t** node) {
     return game->winner;
 }
 
+int rapid_simulate(board_t* game) {
+    if (game->turns_left == 0) return game->winner;
+
+    int moves = 10;
+    int row, col, n;
+    int options[81];
+    while (moves-->0 && game->turns_left > 0) {
+        n = uttt_get_valid(game, options);
+        uttt_raw_to_rowcol(options[rand()%n], &row, &col);
+        uttt_move(game, row, col);
+    }
+
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            if (game->miniwins[i][j] == -1)
+                game->miniwins[i][j] = rand() % 2 + 1;
+        }
+    }
+    return _uttt_check_win(game);
+}
 int simulate(board_t* game) {
     if (game->turns_left == 0) return game->winner;
     int options[81];
@@ -327,57 +442,125 @@ void stop_threads(void) {
     }
     printf("OK.\n");
 
-    printf("    Searches ran: %d\n", searches);
+    printf("    Searches run: %d\n", searches);
+    printf("    Simulations run: %d\n", num_sims);
     printf("    Total States: %d\n", num_states);
     searches = 0;
+    num_sims = 0;
 }
 
 // Wipe out really bad tree values to save memory
-void prune(tree_node_t* branch) {
-    return;
-    if (branch->num_children == 0)
-        return;
-    if (branch->visits < MIN_PRUNE_VISITS)
-        return;
+// for use elsewhere. Assumes that opponent won't
+// waste time on a losing move so we won't either.
+// If we evaluate enough, this will converge to
+// a win-only tree.
+int prune(tree_node_t* branch, board_t* game) {
+    // Don't prune if there's a low chance the game is even over.
+    if (AB_MIN_TURNS_LEFT < game->turns_left) return 0;
+    int count = 0;
+    int i;
+    // If branch is devoid of children, return the call
+    if (branch->num_children <= 0)
+        return count;
+    // If there are children, ask them to do tidy themselves
+    // first in case they end up empty
+    i = 0;
+    while (i < branch->num_children) {
+        tree_node_t* child = branch->children[i];
+        // Apply the child's move
+        board_t test;
+        uttt_clone(game, &test);
+        uttt_move(&test, child->row, child->col);
+        count += prune(child, &test);
 
-    float best_lcb = -INFINITY;
-    float worst_ucb = INFINITY;
-
-    float lower;
-    float upper;
-    tree_node_t* child;
-    tree_node_t* worst = NULL;
-    int pos = 0;
-    for (int i = 0; i < branch->num_children; i++) {
-        child = branch->children[i];
-        lower = uct(child->mean, child->visits, branch->visits, LCB_CONST);
-        upper = uct(child->mean, child->visits, branch->visits, UCB_CONST);
-
-        if (child->visits < MIN_CUT_VISITS)
+        // If the child has pruned all of it's children,
+        // then cut the branch off--it's bad.
+        if (child->num_children == 0) {
+            count += shift_cut(branch, i);
             continue;
-        if (lower > best_lcb) {
-            best_lcb = lower;
-        }
-        if (upper < worst_ucb) {
-            worst_ucb = upper;
-            worst = child;
-            pos = i;
+        } else {
+            i++;
         }
     }
 
-    // If the best option is significantly better
-    // than the worst option, delete the branch entirely.
-    if (best_lcb > worst_ucb) {
-        cut_branch(worst);
-        // Shift the children to fill the gap
-        for (int i = pos; i < branch->num_children; i++) {
-            branch->children[i] = branch->children[i+1];
+    i = 0;
+    while (i < branch->num_children) {
+        tree_node_t* child = branch->children[i];
+        // If the child already knows it's a winner,
+        // give up on this branch, we can't win.
+        // Leave it up to the parent to decide if we
+        // cut this branch
+        if (child->is_win == 1) {
+            branch->is_win = -1;
+            return count;
+        }
+        // If the child already knows it's a loser, cut him out.
+        if (child->is_win == -1) {
+            printf("-- cutting %d, %d (loser)\n",
+                    child->row, child->col);
+            count += shift_cut(branch, i);
+            continue;
+        }
+        // Try the child's move
+        board_t test;
+        uttt_clone(game, &test);
+        uttt_move(&test, child->row, child->col);
+        // Check if there's a winner available
+        if (test.turns_left == 0) {
+            // If we are the winner, delete the child
+            if (test.winner == game->player) {
+                branch->is_win = 1;
+                count += shift_cut(branch, i);
+                printf("-- cutting %d, %d (not imm winner)\n",
+                    child->row, child->col);
+                continue;
+            }
+        }
+        // If we can't win in one move, move to the next child.
+        // NOTE: We don't put this in an else clause because we
+        //       may get here if we tie.
+        i++;
+    }
+
+    return count;
+}
+
+int remove_low_conf(tree_node_t* branch) {
+    int count = 0;
+    if (branch == NULL) return 0;
+    if (branch->children == NULL) return 0;
+    if (branch->visits < MIN_CUT_VISITS) return 0;
+
+    tree_node_t* best = select_best(branch, PICK_CONST);
+    if (best == NULL) return 0;
+    if (best->visits < MIN_CUT_VISITS) return 0;
+
+    float ucb;
+    float best_lcb = uct(best->mean, best->visits, branch->visits, SIG_LCB_CONST);
+
+    int i = 0;
+    while (i < branch->num_children) {
+        // Don't cut a branch that hasn't been visited much yet
+        tree_node_t* child = branch->children[i];
+        if (child->visits < MIN_CUT_VISITS) {
+            i++;
+            continue;
+        }
+
+        // If the best this child can promise is worse than
+        // the worst of the best child, delete it.
+        ucb = uct(child->mean, child->visits, branch->visits, SIG_UCB_CONST);
+        if (ucb < best_lcb) {
+            printf("-- cutting %d, %d with %.3f < %.3f\n",
+                    child->row, child->col, ucb, best_lcb);
+            count += shift_cut(branch, i);
+        } else {
+            // This branch survived. Sacrifice its children.
+            count += remove_low_conf(child);
+            i++;
         }
     }
-    // Prune each child, too
-    for (int i = 0; i < branch->num_children; i++) {
-        prune(branch->children[i]);
-    }
+    return count;
 }
 
 // Properly remove a child and all of its descendents
@@ -398,6 +581,31 @@ int cut_branch(tree_node_t* branch) {
     cut++;
     
     return cut;
+}
+
+// Adjusts the children to account for a removed child at pos.
+// Use if you plan on preserving the rest of the tree
+// instead of cut_branch
+int shift_cut(tree_node_t* node, int pos) {
+    int count = 0;
+    tree_node_t* child = node->children[pos];
+
+    int N = child->num_children;
+    for (int i = 0; i < N; i++) {
+        count += cut_branch(child->children[i]);
+    }
+
+    node->num_children--;
+    for (int i = pos; i < node->num_children; i++) {
+        node->children[i] = node->children[i+1];
+    }
+    free(child->children);
+    free(child);
+
+    count++;
+    num_states--;
+
+    return count;
 }
 
 void show_choices(tree_node_t* branch) {

@@ -14,6 +14,7 @@ typedef struct tree_node_t {
     int player;
     int row;
     int col;
+    int is_win;
 
     float mean;
     int visits;
@@ -31,15 +32,17 @@ void start_threads(void);
 void stop_threads(void);
 
 tree_node_t* find_node(tree_node_t* node, int row, int col);
-tree_node_t* pick_best(tree_node_t* node);
 tree_node_t* select_best(tree_node_t* node, float coeff);
 
 void selection(board_t* board, tree_node_t* tree, tree_node_t** leaf);
 int expand(board_t* board, tree_node_t* leaf, tree_node_t** node);
+int rapid_simulate(board_t* board);
 int simulate(board_t* board);
 void backprop(int player, int winner, tree_node_t* leaf);
-void prune(tree_node_t* branch);
+int prune(tree_node_t* branch, board_t* game);
+int remove_low_conf(tree_node_t* branch);
 int cut_branch(tree_node_t* branch);
+int shift_cut(tree_node_t* node, int pos);
 
 void show_choices(tree_node_t* branch);
 
