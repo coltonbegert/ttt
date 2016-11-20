@@ -19,9 +19,9 @@
 // TIMEOUT prevents the bot from spending too long thinking
 //  (does not count pruning time)
 // MIN_SEARCHES ensures the bot considered enough options
-#define MIN_SEARCHES 1000000
-#define MAX_STATES 1000000
-#define TIMEOUT 30
+#define MIN_SEARCHES 100000
+#define MAX_STATES 10000000
+#define TIMEOUT 20
 
 // Coefficients for different calculations of UCT
 // UCB_CONST and LCB_CONST are used for printing statistics
@@ -41,7 +41,7 @@
 // Use a heuristic on the first RAPID_SEARCHES iterations
 // This greatly improves the statistics with low cost
 // but the heuristic may be innacurate.
-#define RAPID_SEARCHES 100000
+#define RAPID_SEARCHES 10000
 
 // ** Pruning **
 // Pruning allows the bot to consider more states with
@@ -49,9 +49,15 @@
 // we'll usually cut away the tree before it matters. But
 // it can still help to remove moves that are unlikely to
 // ever be influential from the board to improve search efficiency.
-// If pruning is not effective during a search, it is canceled
-// until stop_threads is called. This allows the values that
-// exist to be improved more frequently by visits to simulations.
+// The trade off is that pruning is a very slow operation
+// and it maybe better to simply use more simulations.
+#define USB_LCR_PRUNING 1
+#define USB_AB_PRUNING 1
+
+// Min number of searches before trying to prune
+#define PRUNE_TIMER 50000
+// Minimum number of states to use before pruning
+#define MIN_PRUNE_STATES 20000
 
 // Low-Confidence Removal (Pruning)
 // Removes moves that have a low chance of winning
@@ -61,7 +67,6 @@
 // best move, it is rejected and all of its children are
 // evicted from the tree.
 // Fast but not guaranteed to be safe.
-#define USB_LCR_PRUNING 1
 #define SIG_UCB_CONST 0.95
 #define SIG_LCB_CONST -0.95
 #define MIN_CUT_VISITS 2000
@@ -71,7 +76,6 @@
 // Propogates in a bottom-up fashion.
 // Might delete valuable search results if the
 // opponent does not play perfectly.
-#define USB_AB_PRUNING 1
 #define AB_MIN_TURNS_LEFT 50
 
 #include "fast_mcts.h"
@@ -86,6 +90,7 @@
 
 static board_t board;
 static tree_node_t* tree;
+int options[81];
 
 int searches = 0;
 int num_sims = 0;
@@ -197,10 +202,11 @@ move_t request() {
     int timeout = 0;
     printf("Thinking...\r");
     fflush(stdout);
-    while (timeout++ < TIMEOUT && num_states < MAX_STATES && searches < MIN_SEARCHES) {
-        usleep(333334);
+    while (tree->num_children <= 0 || 
+            (timeout++ < TIMEOUT && searches < MIN_SEARCHES)) {
+        sleep(1);
     }
-    if (timeout < TIMEOUT) {
+    if (timeout >= TIMEOUT) {
         printf("Timed out.\n");
     } else {
         printf("OK.\n");
@@ -236,6 +242,7 @@ void* worker( void* argument ) {
     int use_ab = USB_AB_PRUNING;
     int use_lcr = USB_LCR_PRUNING;
     int can_prune = use_ab || use_lcr;
+    int prune_timer = PRUNE_TIMER;
 
     while (working) {
         searches++;
@@ -261,25 +268,38 @@ void* worker( void* argument ) {
         backprop(player, winner, node);
         
         // ** Pruning **
-        if (can_prune && num_states > MAX_STATES) {
+        if (can_prune && searches % prune_timer == 0 &&
+                num_states > MIN_PRUNE_STATES) {
             int old_states = num_states;
             printf("Pruning...\n");
 
+            int total_pruned = 0;
             int pruned;
 
-            // Try alpha-beta pruning
-            pruned = prune(tree, &board);
-            printf("--> AB-Pruned %d nodes.\n", pruned);
-            if (pruned == 0) use_ab = 0;
+            if (use_ab) {
+                // Try alpha-beta pruning
+                pruned = prune(tree, &board);
+                printf("--> AB-Pruned %d nodes.\n", pruned);
+                // If there was no improvement, we probably can't
+                // improve later.
+                if (pruned == 0) use_ab = 0;
+                total_pruned += pruned;
+            }
 
-            pruned = remove_low_conf(tree);
-            printf("--> Low-Conf Pruned %d nodes.\n", pruned);
-            if (pruned == 0) use_lcr = 0;
+            if (use_lcr) {
+                pruned = remove_low_conf(tree);
+                printf("--> Low-Conf Pruned %d nodes.\n", pruned);
+                // If we reduced the states, we can use AB again.
+                if (pruned > 0) use_ab = USB_AB_PRUNING;
+                total_pruned += pruned;
+            }
 
-            printf("Reduced from  %d -> %d\n", old_states, num_states);
-            can_prune = use_ab || use_lcr;
-            if (!can_prune) {
-                printf("** Giving up on pruning.\n");
+            if (total_pruned == 0) {
+                prune_timer <<= 1;
+                printf("Prune ineffective. Waiting %d searches\n", prune_timer);
+            } else {
+                prune_timer = PRUNE_TIMER;
+                printf("Reduced from %d -> %d\n", old_states, num_states);
             }
         }
     }
@@ -327,7 +347,6 @@ void selection(board_t* game, tree_node_t* tree, tree_node_t** node) {
 }
 
 int expand(board_t* game, tree_node_t* leaf, tree_node_t** node) {
-    int options[81];
     int N = uttt_get_valid(game, options);
 
     *node = leaf;
@@ -367,7 +386,6 @@ int rapid_simulate(board_t* game) {
 
     int moves = 10;
     int row, col, n;
-    int options[81];
     while (moves-->0 && game->turns_left > 0) {
         n = uttt_get_valid(game, options);
         uttt_raw_to_rowcol(options[rand()%n], &row, &col);
@@ -384,7 +402,6 @@ int rapid_simulate(board_t* game) {
 }
 int simulate(board_t* game) {
     if (game->turns_left == 0) return game->winner;
-    int options[81];
     int row, col;
     int n = uttt_get_valid(game, options);
 
@@ -459,6 +476,8 @@ int prune(tree_node_t* branch, board_t* game) {
     if (AB_MIN_TURNS_LEFT < game->turns_left) return 0;
     int count = 0;
     int i;
+    int player;
+    int has_win = 0;
     // If branch is devoid of children, return the call
     if (branch->num_children <= 0)
         return count;
@@ -466,20 +485,40 @@ int prune(tree_node_t* branch, board_t* game) {
     // first in case they end up empty
     i = 0;
     while (i < branch->num_children) {
-        tree_node_t* child = branch->children[i];
-        // Apply the child's move
-        board_t test;
-        uttt_clone(game, &test);
-        uttt_move(&test, child->row, child->col);
-        count += prune(child, &test);
+        tree_node_t* child = branch->children[i++];
+        if (child->is_win == 0) {
+            // Test the child's move
+            board_t test;
+            uttt_clone(game, &test);
+            player = test.player;
+            uttt_move(&test, child->row, child->col);
+
+            // Check if there's a winner available
+            if (test.turns_left == 0) {
+                // If we are the winner, delete the child
+                if (test.winner == player) {
+                    child->is_win = 1;
+                    child->mean = 1.0;
+                    has_win = 1;
+                    continue;
+                }
+            }
+
+            count += prune(child, &test);
+        }
+
+        if (child->is_win == 1) {
+            has_win = 1;
+            continue;
+        }
 
         // If the child has pruned all of it's children,
-        // then cut the branch off--it's bad.
+        // then it's a winning move for us.
         if (child->num_children == 0) {
-            count += shift_cut(branch, i);
+            child->is_win = 1;
+            child->mean = 1.0;
+            has_win = 1;
             continue;
-        } else {
-            i++;
         }
     }
 
@@ -492,33 +531,24 @@ int prune(tree_node_t* branch, board_t* game) {
         // cut this branch
         if (child->is_win == 1) {
             branch->is_win = -1;
-            return count;
-        }
-        // If the child already knows it's a loser, cut him out.
-        if (child->is_win == -1) {
-            printf("-- cutting %d, %d (loser)\n",
-                    child->row, child->col);
+            branch->mean = -1.0;
+            i++;
+            continue;
+        } else if (has_win) {
+            // If there was a winning move and this child
+            // isn't one of them, remove the child
             count += shift_cut(branch, i);
             continue;
         }
-        // Try the child's move
-        board_t test;
-        uttt_clone(game, &test);
-        uttt_move(&test, child->row, child->col);
-        // Check if there's a winner available
-        if (test.turns_left == 0) {
-            // If we are the winner, delete the child
-            if (test.winner == game->player) {
-                branch->is_win = 1;
-                count += shift_cut(branch, i);
-                printf("-- cutting %d, %d (not imm winner)\n",
-                    child->row, child->col);
-                continue;
-            }
+
+        // If the child already knows it's a loser, cut him out.
+        if (child->is_win == -1) {
+            count += shift_cut(branch, i);
+            continue;
         }
-        // If we can't win in one move, move to the next child.
-        // NOTE: We don't put this in an else clause because we
-        //       may get here if we tie.
+
+        // If we get to this situation, we don't have enough
+        // information. try the next child.
         i++;
     }
 
@@ -551,8 +581,6 @@ int remove_low_conf(tree_node_t* branch) {
         // the worst of the best child, delete it.
         ucb = uct(child->mean, child->visits, branch->visits, SIG_UCB_CONST);
         if (ucb < best_lcb) {
-            printf("-- cutting %d, %d with %.3f < %.3f\n",
-                    child->row, child->col, ucb, best_lcb);
             count += shift_cut(branch, i);
         } else {
             // This branch survived. Sacrifice its children.
@@ -594,14 +622,13 @@ int shift_cut(tree_node_t* node, int pos) {
     for (int i = 0; i < N; i++) {
         count += cut_branch(child->children[i]);
     }
+    free(child->children);
+    free(child);
 
     node->num_children--;
     for (int i = pos; i < node->num_children; i++) {
         node->children[i] = node->children[i+1];
     }
-    free(child->children);
-    free(child);
-
     count++;
     num_states--;
 
