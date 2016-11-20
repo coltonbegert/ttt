@@ -46,6 +46,8 @@ typedef struct state{
     struct state *next;
     struct state *prev;
     struct state *parent;
+    struct state *best_child;
+    struct state *best_leaf;
 } state;
 
 state *create_head ();
