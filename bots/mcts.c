@@ -14,6 +14,21 @@
 // } state;
 
 
+void clean_up(state *node) {
+    if (node->child == NULL) {
+        if (node->next == NULL) {
+            if(node->prev != NULL) {
+                node->prev->next = NULL;
+            }
+            free(node);
+            return;
+        } else {
+            clean_up(node->next);
+        }
+    } else {
+        clean_up(node->child);
+    }
+}
 state *selection (state *in_state) {
     // return in_state;
     // printf("selection\n");
@@ -203,12 +218,13 @@ int main(int argc, char const *argv[]) {
     // state *head;
     // head = malloc(sizeof(state));
     state *head = create_head();
-    for (int i = 0; i < 50000; i++) {
+    for (int i = 0; i < 5000; i++) {
         // printf("iteration: %d\n", i);
         mcts(head);
 
     }
     printf("did we escape?\n");
+    clean_up(head);
     return 1;
     int move;
     // player = 1;
