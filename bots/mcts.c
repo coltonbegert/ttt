@@ -20,15 +20,18 @@ state *selection (state *in_state) {
     state *next_child;
     state *best_child;
     uint32_t best_val =-1;
+    int i = 0;
     // next_child = malloc(sizeof(state));
     for (next_child = in_state; next_child->next != NULL; next_child = next_child->next) {
         //choosing next child to explore based on selection policy
         // printf("%d, %d\n", next_child->visits, next_child->wins);
+        i++;
         if (((next_child->visits + 2) / (next_child->wins + 1)) < best_val) {
             best_child = next_child;
             best_val = (next_child->visits +2) / (next_child->wins+1);
         }
     }
+    // printf("num children: %d\n", i);
     // printf("e select\n");
     return best_child;
 }
@@ -53,8 +56,10 @@ void backprop(state *leaf, int result) {
     state *node;
     int player = leaf->last.player;
     int i = 0;
-    for (node = leaf; node->parent != NULL; player = player == 1 ? 2 : 1, node = node->parent) {
+    // player = player == 1 ? 2 : 1
+    for (node = leaf; node->parent != NULL;node = node->parent) {
         // printf("backprop:%d\n", i++);
+        i++;
         node->visits++;
         if (result) {
             node->wins++;
@@ -62,12 +67,14 @@ void backprop(state *leaf, int result) {
         result = !result;
 
     }
+    // printf("level of node: %d\n", i);
     // printf("got out\n");
 }
 
 
 int simulate(state *node) {
-    return 0;
+    int r = rand();
+    return r%2;
 }
 
 state *expand_node(state *leaf) {
@@ -131,6 +138,8 @@ state *create_child(state *prev_child, state *leaf, int board, int move, int pla
     new_child->child = NULL;
     new_child->visits = 0;
     new_child->wins =0;
+    new_child->last.board = board;
+    new_child->last.player = player;
 
 
     return new_child;
@@ -194,13 +203,13 @@ int main(int argc, char const *argv[]) {
     // state *head;
     // head = malloc(sizeof(state));
     state *head = create_head();
-    for (int i = 0; i < 500000; i++) {
-        printf("iteration: %d\n", i);
+    for (int i = 0; i < 50000; i++) {
+        // printf("iteration: %d\n", i);
         mcts(head);
 
     }
     printf("did we escape?\n");
-
+    return 1;
     int move;
     // player = 1;
     scanf("%d", &move);
