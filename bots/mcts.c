@@ -45,7 +45,7 @@ state *selection (state *in_state) {
     uint32_t best_val =-1;
     int i = 0;
     // next_child = malloc(sizeof(state));
-    for (next_child = in_state; next_child->next != NULL; next_child = next_child->next) {
+    for (next_child = in_state->parent->child; next_child->next != NULL; next_child = next_child->next) {
         //choosing next child to explore based on selection policy
         // printf("%d, %d\n", next_child->visits, next_child->wins);
         i++;
@@ -56,6 +56,7 @@ state *selection (state *in_state) {
     }
     // printf("num children: %d\n", i);
     // printf("e select\n");
+    // printf("best w/l: %d/%d\n", best_child->wins, best_child->visits);
     return best_child;
 }
 // state *root;
@@ -91,30 +92,40 @@ void backprop(state *leaf, int result) {
     int player = leaf->last.player;
     int levels = 0, select_updates = 0;
     // player = player == 1 ? 2 : 1
-    for (node = leaf; node->parent != NULL;node = node->parent) {
+    // printf("%d\n", result);
+    for (node = leaf; node!=NULL;node = node->parent) {
+        // printf("%d\n", node->visits);
         // printf("backprop:%d\n", i++);
         if (need_select) {
             select_updates++;
-            best_node = selection(node->parent->child);
-            if(node->parent->best_child != best_node) {
-                node->parent->best_child = best_node;
+            if (node == head) {
+                // head->best_child = selection(node->child);
+                head->best_leaf = leaf;
             } else {
-                need_select =0;
-                // printf("saved computation\n");
+                best_node = selection(node->parent->child);
+                if(node->parent->best_child != best_node) {
+                    node->parent->best_child = best_node;
+                } else {
+                    need_select =0;
+                    // printf("saved computation\n");
+                }
+
             }
 
         }
         levels++;
+        // printf("pre vis: %d\n", node->visits);
         node->visits++;
+        // printf("pos vis: %d\n", node->visits);
         if (result) {
             node->wins++;
         }
         result = !result;
 
     }
-    if (levels == select_updates) {
-        head->best_leaf = leaf;
-    }
+    // if (levels == select_updates) {
+    //     head->best_leaf = leaf;
+    // }
     // printf("level of node: %d, levels of select:%d\n", i, j);
     // printf("got out\n");
 }
@@ -122,6 +133,7 @@ void backprop(state *leaf, int result) {
 
 int simulate(state *node) {
     int r = rand();
+    // return 1;
     return r%2;
 }
 
@@ -255,7 +267,7 @@ int main(int argc, char const *argv[]) {
     clock_t begin = clock();
     head = create_head();
     // state *head = create_head();
-    for (int i = 0; i < 1000000; i++) {
+    for (int i = 0; i < 1000; i++) {
         // printf("iteration: %d\n", i);
         mcts(head);
 
@@ -265,7 +277,12 @@ int main(int argc, char const *argv[]) {
     printf("time spent:%f, %f.\n", time_spent, selct_clock);
 
     printf("did we escape? %d \n", select_count);
-    printf("wins: %d, visits: %d.\n", head->child->wins, head->child->visits);
+    printf("wins: %d, visits: %d.\n", head->wins, head->visits);
+    int node_num = 0;
+    for (state *next_child = head->child;next_child->next!=NULL; node_num++, next_child = next_child->next) {
+        printf("node:%d ,wins: %d ,visits: %d.\n", node_num,next_child->wins, next_child->visits);
+        /* code */
+    }
     clean_up(head);
     return 0;
     int move;
