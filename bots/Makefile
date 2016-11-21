@@ -1,4 +1,4 @@
-CFLAGS = -Wall -std=gnu99
+CFLAGS = -Wall -std=gnu99 -DLOCAL_BUILD=1
 NAME = mcts
 
 

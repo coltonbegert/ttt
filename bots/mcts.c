@@ -1,5 +1,39 @@
-
 #include "mcts.h"
+
+#ifndef LOCAL_BUILD
+// TODO: Implement these functions to make the bot work with
+// the python module.
+//
+// They are implemented as socket callbacks, and are expected
+// to be at times when the bot does not need to worry about
+// optimization.
+//
+// To run this bot, run
+//      python3 setup.py build_ext --inplace
+// in the root directory, then add the client using
+//      python3 Client_UTTT.py cpy mcts
+//
+// If you do not want to include the python headers, add a flag
+// to the compile that defines the LOCAL_BUILD macro.
+
+// Called to initialize the bot, before connecting to the host.
+void setup(int argc, char** argv) {}
+
+// Called to initializing the bot, after connecting to the host.
+void start(void) {}
+
+// Called on a shutdown signal
+void stop(void) {}
+
+// Called when a move is played so that you can update your
+// internal state.
+void update(int last_player, move_t last_move) {}
+
+// Called when it's your turn. Just return a move_t tuple.
+// This tuple only contains a row and column in 9x9 grid coordinates
+// as integers.
+move_t request(void) { move_t move; move.row = 0; move.col = 0; return move;}
+#endif
 
 // Coefficient to use in UCB for selection policy
 #define SELECTION_COEFF 1.414

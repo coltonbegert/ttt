@@ -9,12 +9,11 @@
  * as a regular module.
  */
 
-#include <python3.5/Python.h>
 #include <stdlib.h>
 #include <time.h>
 
+#include "fast_mcts.h"
 #include "board.h"
-#include "cpybot.h"
 
 board_t board;
 void setup(int argc, char** argv) {
