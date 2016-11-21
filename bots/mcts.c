@@ -1,6 +1,13 @@
 
 #include "mcts.h"
 
+// Coefficient to use in UCB for selection policy
+#define SELECTION_COEFF 1.414
+
+// Coefficient to use in UCB when selecting moves.
+// 0.0 is good for exploitation of mean,
+// -1.0 is good for minimizing loss.
+#define POLICY_COEFF 0.0
 
 // typedef struct state{
 //     mini_board mini_board[9]; //malloc(9*sizeof(board));
@@ -36,22 +43,36 @@ void clean_up(state *node) {
 // void mem_pool(state *pool, int num_states) {
 //
 // }
-state *selection (state *in_state) {
+state *selection (state *in_state, float coeff) {
     // return in_state;
     // printf("selection\n");
     select_count++;
     state *next_child;
     state *best_child;
-    uint32_t best_val =-1;
+    float best_val =-INFINITY;
     int i = 0;
+
+    float numer;
+    if (in_state->parent->visits == 0)
+        numer = INFINITY;
+    else 
+        numer = coeff*sqrtf(logf((float)in_state->parent->visits));
+
     // next_child = malloc(sizeof(state));
     for (next_child = in_state->parent->child; next_child->next != NULL; next_child = next_child->next) {
         //choosing next child to explore based on selection policy
         // printf("%d, %d\n", next_child->visits, next_child->wins);
         i++;
-        if (((next_child->visits + 2) / (next_child->wins + 1)) < best_val) {
+        float mean, score;
+        if (next_child->visits == 0) {
+            score = INFINITY;
+        } else {
+            mean = next_child->wins / next_child->visits;
+            score = mean + numer / sqrtf((float)next_child->visits);
+        }
+        if (score > best_val) {
             best_child = next_child;
-            best_val = (next_child->visits +2) / (next_child->wins+1);
+            best_val = score;
         }
     }
     // printf("num children: %d\n", i);
@@ -102,7 +123,7 @@ void backprop(state *leaf, int result) {
                 // head->best_child = selection(node->child);
                 head->best_leaf = leaf;
             } else {
-                best_node = selection(node->parent->child);
+                best_node = selection(node->parent->child, SELECTION_COEFF);
                 if(node->parent->best_child != best_node) {
                     node->parent->best_child = best_node;
                 } else {
@@ -111,6 +132,7 @@ void backprop(state *leaf, int result) {
                 }
 
             }
+            node->best_leaf = NULL;
 
         }
         levels++;
@@ -237,7 +259,7 @@ int make_move(mini_board *board, int move, int player) {
     // return 1;
     if (check_win(move, board, player) == player) {
         return 1;
-        printf("forund winner\n");
+        printf("found winner\n");
     }
     return 0;
     // if (((board->pos << (2*move)) & 0x3) == 0) {

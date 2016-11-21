@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
-
+#include <stdint.h>
+#include <math.h>
 
 // typedef struct{
 //     uint8_t positions[17];
@@ -56,7 +57,7 @@ void backprop(state *leaf, int result);
 int simulate(state *node);
 int make_move(mini_board *board, int move, int player);
 state *create_child(state *next_child, state *leaf, int board, int move, int player);
-state *selection (state *in_state);
+state *selection (state *in_state, float coeff);
 int check_win(int move, mini_board *new_board, char player);
 int mcts(state *in_state);
 int valid_move(mini_board *board, int move, int player);

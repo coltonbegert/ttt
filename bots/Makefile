@@ -3,7 +3,7 @@ NAME = mcts
 
 
 build: $(OBJECTS)
-	gcc $(CFLAGS) mcts.c -o mcts
+	gcc $(CFLAGS) mcts.c -o mcts -lm
 
 debug:
 	gcc $(CFLAGS) -ggdb mcts.c -o mcts
