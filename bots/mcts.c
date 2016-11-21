@@ -111,6 +111,7 @@ void backprop(state *leaf, int result) {
 
     // printf("backprop\n");
     state *node;
+    state *best_leaf = leaf;
     int player = leaf->last.player;
     int levels = 0, select_updates = 0;
     // player = player == 1 ? 2 : 1
@@ -121,6 +122,10 @@ void backprop(state *leaf, int result) {
         if (node != head) {
             best_node = selection(node->parent->child, SELECTION_COEFF);
             node->parent->best_child = best_node;
+            if (best_node != node) {
+                best_leaf = best_node->best_leaf;
+            }
+            node->parent->best_leaf = best_leaf;
         }
 
         levels++;
@@ -210,6 +215,7 @@ state *create_child(state *prev_child, state *leaf, int board, int move, int pla
     new_child->wins =0;
     new_child->last.board = board;
     new_child->last.player = player;
+    new_child->best_leaf = new_child;
 
 
     return new_child;
