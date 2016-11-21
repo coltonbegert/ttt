@@ -107,6 +107,7 @@ void backprop(state *leaf, int result) {
     int need_select = 1;
     // int j=0;
     state *best_node;
+    head->best_leaf=NULL;
 
     // printf("backprop\n");
     state *node;
@@ -117,24 +118,11 @@ void backprop(state *leaf, int result) {
     for (node = leaf; node!=NULL;node = node->parent) {
         // printf("%d\n", node->visits);
         // printf("backprop:%d\n", i++);
-        if (need_select) {
-            select_updates++;
-            if (node == head) {
-                // head->best_child = selection(node->child);
-                head->best_leaf = leaf;
-            } else {
-                best_node = selection(node->parent->child, SELECTION_COEFF);
-                if(node->parent->best_child != best_node) {
-                    node->parent->best_child = best_node;
-                } else {
-                    need_select =0;
-                    // printf("saved computation\n");
-                }
-
-            }
-            node->best_leaf = NULL;
-
+        if (node != head) {
+            best_node = selection(node->parent->child, SELECTION_COEFF);
+            node->parent->best_child = best_node;
         }
+
         levels++;
         // printf("pre vis: %d\n", node->visits);
         node->visits++;
