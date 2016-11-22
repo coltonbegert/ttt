@@ -40,14 +40,14 @@ void start(void) {
 void stop(void) {
     // clean_up(head);
     working = 0;
-    if semaphore {
+    if (semaphore) {
         pthread_join(&worker, NULL);
         clean_up(head);
         semaphore = 0;
     }
 }
 
-void * work(void *) {
+void * work(void *arg) {
     while (working) {
         mcts(head);
     }
@@ -60,10 +60,10 @@ void update(int last_player, move_t last_move) {
     int mini_board = 3 * last_move.row / 3 + last_move.col/3;
     int mini_pos = 3 * last_move.row%3 + last_move.col%3;
 
-    index = 3*last_move.row%3 + last_move.col%3;
+    // int index = 3*last_move.row%3 + last_move.col%3;
     state *node;
     for(node = head->child; node!=NULL; node = node->next ) {
-        if !(valid_move(&node->mini_board[mini_board], mini_pos, 1)) {
+        if (!valid_move(&node->mini_board[mini_board], mini_pos, 1)) {
             // not a valid move means it was played
             if (node->next != NULL) {
                 if (node->prev !=NULL) {
@@ -99,7 +99,7 @@ move_t request(void) {
         int pos = head->mini_board[i].pos ^ head->best_child->mini_board[i].pos;
         if (pos) {
             for (size_t j = 1; j < 10; j++) {
-                if !(pos>> 2*j) {
+                if (!(pos>> 2*j)) {
                     move.row = 3*i/3 + (j-1)/3;
                     move.col = 3*i%3 + (j-1)%3;
                     return move;

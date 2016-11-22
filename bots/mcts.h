@@ -65,6 +65,7 @@ state *selection (state *in_state, float coeff);
 int check_win(int move, mini_board *new_board, char player);
 int mcts(state *in_state);
 int valid_move(mini_board *board, int move, int player);
+void * work(void *);
 
 #ifndef LOCAL_BUILD
 // Parts needed to integrate with python host.
