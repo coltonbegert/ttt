@@ -19,8 +19,8 @@
 // TIMEOUT prevents the bot from spending too long thinking
 //  (does not count pruning time)
 // MIN_SEARCHES ensures the bot considered enough options
-#define MIN_SEARCHES 100000
-#define MAX_STATES 10000000
+#define MIN_SEARCHES 1048576
+#define MAX_STATES 16777216
 #define TIMEOUT 20
 
 // Coefficients for different calculations of UCT
@@ -41,7 +41,7 @@
 // Use a heuristic on the first RAPID_SEARCHES iterations
 // This greatly improves the statistics with low cost
 // but the heuristic may be innacurate.
-#define RAPID_SEARCHES 10000
+#define RAPID_SEARCHES 16384
 
 // ** Pruning **
 // Pruning allows the bot to consider more states with
@@ -51,11 +51,9 @@
 // ever be influential from the board to improve search efficiency.
 // The trade off is that pruning is a very slow operation
 // and it maybe better to simply use more simulations.
-#define USB_LCR_PRUNING 1
-#define USB_AB_PRUNING 1
 
 // Min number of searches before trying to prune
-#define PRUNE_TIMER 50000
+#define PRUNE_TIMER 32768
 // Minimum number of states to use before pruning
 #define MIN_PRUNE_STATES 20000
 
@@ -67,6 +65,8 @@
 // best move, it is rejected and all of its children are
 // evicted from the tree.
 // Fast but not guaranteed to be safe.
+#define USB_LCR_PRUNING 1
+
 #define SIG_UCB_CONST 0.95
 #define SIG_LCB_CONST -0.95
 #define MIN_CUT_VISITS 2000
@@ -76,7 +76,11 @@
 // Propogates in a bottom-up fashion.
 // Might delete valuable search results if the
 // opponent does not play perfectly.
+#define USB_AB_PRUNING 1
+
 #define AB_MIN_TURNS_LEFT 50
+
+
 
 #include "fast_mcts.h"
 
@@ -242,20 +246,28 @@ void* worker( void* argument ) {
     int use_ab = USB_AB_PRUNING;
     int use_lcr = USB_LCR_PRUNING;
     int can_prune = use_ab || use_lcr;
+
+    int ab_available = use_ab;
     int prune_timer = PRUNE_TIMER;
 
-    while (working) {
-        searches++;
+    int ready = 0;
+
+    while (working && !ready) {
+        ready = (++searches % MIN_SEARCHES == 0) || ready;
+
         uttt_clone(&board, &board_copy);
         // MCTS with pruning
+        
         // ** Selection **
         selection(&board_copy, tree, &leaf);
+
         // ** Expansion **
         int player = board_copy.player;
         if (num_states < MAX_STATES)
             expand(&board_copy, leaf, &node);
         else
             node = leaf;
+        
         // ** Simulation **
         if (searches < RAPID_SEARCHES) { 
             winner = rapid_simulate(&board_copy);
@@ -264,6 +276,7 @@ void* worker( void* argument ) {
             winner = simulate(&board_copy);
             num_sims++;
         }
+        
         // ** Backprop **
         backprop(player, winner, node);
         
@@ -276,21 +289,28 @@ void* worker( void* argument ) {
             int total_pruned = 0;
             int pruned;
 
-            if (use_ab) {
+            if (ab_available) {
                 // Try alpha-beta pruning
                 pruned = prune(tree, &board);
                 printf("--> AB-Pruned %d nodes.\n", pruned);
                 // If there was no improvement, we probably can't
                 // improve later.
-                if (pruned == 0) use_ab = 0;
+                if (pruned == 0) ab_available = 0;
                 total_pruned += pruned;
+                // Stop pruning if we removed everything.
+                if (num_states == 1) {
+                    use_ab = 0;
+                    ab_available = 0;
+                    ready = 0;
+                    printf("AB-pruning too effective. Disabling.");
+                }
             }
 
             if (use_lcr) {
                 pruned = remove_low_conf(tree);
                 printf("--> Low-Conf Pruned %d nodes.\n", pruned);
                 // If we reduced the states, we can use AB again.
-                if (pruned > 0) use_ab = USB_AB_PRUNING;
+                if (pruned > 0) ab_available = use_ab;
                 total_pruned += pruned;
             }
 
