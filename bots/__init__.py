@@ -12,5 +12,5 @@ def get_bot(name):
         'mcts': mctspure.Bot,
         'mctsplus': mctscomplex.Bot,
         'interrupt': interruptable.Bot,
-        'fast': cpybot.Bot
+        'cpy': cpybot.Bot
     }[name]
