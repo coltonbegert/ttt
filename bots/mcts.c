@@ -1,5 +1,9 @@
 #include "mcts.h"
 
+int select_count = 0;
+double selct_clock = 0;
+state *head;
+
 #ifndef LOCAL_BUILD
 // TODO: Implement these functions to make the bot work with
 // the python module.
@@ -17,22 +21,96 @@
 // to the compile that defines the LOCAL_BUILD macro.
 
 // Called to initialize the bot, before connecting to the host.
-void setup(int argc, char** argv) {}
+void setup(int argc, char** argv) {
+    head = create_head();
+}
+
+pthread_t worker;
+int working, semaphore= 1;
 
 // Called to initializing the bot, after connecting to the host.
-void start(void) {}
+void start(void) {
+
+    working = 1;
+    semaphore = 1;
+    pthread_create(&worker, NULL, work, NULL);
+}
 
 // Called on a shutdown signal
-void stop(void) {}
+void stop(void) {
+    // clean_up(head);
+    working = 0;
+    if semaphore {
+        pthread_join(&worker, NULL);
+        clean_up(head);
+        semaphore = 0;
+    }
+}
+
+void * work(void *) {
+    while (working) {
+        mcts(head);
+    }
+}
 
 // Called when a move is played so that you can update your
 // internal state.
-void update(int last_player, move_t last_move) {}
+void update(int last_player, move_t last_move) {
+    stop();
+    int mini_board = 3 * last_move.row / 3 + last_move.col/3;
+    int mini_pos = 3 * last_move.row%3 + last_move.col%3;
+
+    index = 3*last_move.row%3 + last_move.col%3;
+    state *node;
+    for(node = head->child; node!=NULL; node = node->next ) {
+        if !(valid_move(&node->mini_board[mini_board], mini_pos, 1)) {
+            // not a valid move means it was played
+            if (node->next != NULL) {
+                if (node->prev !=NULL) {
+                    node->next->prev = node->prev;
+                    node->prev->next = node->next;
+
+                } else {
+                    node->next->prev = node->prev;
+                }
+            } else {
+                node->prev = node->next;
+            }
+            if (head->child = node) {
+                head->child = head->child->next;
+            }
+            clean_up(head);
+            head = node;
+            break;
+
+        }
+    }
+    start();
+    // TODO call mcts(head)
+}
 
 // Called when it's your turn. Just return a move_t tuple.
 // This tuple only contains a row and column in 9x9 grid coordinates
 // as integers.
-move_t request(void) { move_t move; move.row = 0; move.col = 0; return move;}
+move_t request(void) {
+    // move_t move; move.row = 0; move.col = 0; return move;
+    move_t move;
+    for (size_t i = 0; i < 9; i++) {
+        int pos = head->mini_board[i].pos ^ head->best_child->mini_board[i].pos;
+        if (pos) {
+            for (size_t j = 1; j < 10; j++) {
+                if !(pos>> 2*j) {
+                    move.row = 3*i/3 + (j-1)/3;
+                    move.col = 3*i%3 + (j-1)%3;
+                    return move;
+                }
+            }
+        }
+
+    }
+    // int bit_twiddle = head->
+    // head->best_child;
+}
 #endif
 
 // Coefficient to use in UCB for selection policy
@@ -54,9 +132,7 @@ move_t request(void) { move_t move; move.row = 0; move.col = 0; return move;}
 //     struct state *parent;
 // } state;
 
-int select_count = 0;
-double selct_clock = 0;
-state *head;
+
 
 void clean_up(state *node) {
     if (node->child == NULL) {
@@ -89,7 +165,7 @@ state *selection (state *in_state, float coeff) {
     float numer;
     if (in_state->parent->visits == 0)
         numer = INFINITY;
-    else 
+    else
         numer = coeff*sqrtf(logf((float)in_state->parent->visits));
 
     // next_child = malloc(sizeof(state));
@@ -182,6 +258,28 @@ void backprop(state *leaf, int result) {
 
 int simulate(state *node) {
     int r = rand();
+/*
+memcpy(node, node)
+    int i,end;
+    if (leaf->last.board == 9) {
+        i = 0, end = 8;
+    } else {
+        i = end = leaf->last.board;
+    }
+
+    game_inproggress = true;
+    while game_inproggress {
+    game_inproggress = false;
+    for (size_t i = 0; i < count; i++) {
+        for
+        if valid_move(){
+        game_inproggress = true;
+        make_move
+        continue;
+    }
+    }
+}
+    */
     // return 1;
     return r%2;
 }
