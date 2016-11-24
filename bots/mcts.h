@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <math.h>
+#include <pthread.h>
 
 #ifndef LOCAL_BUILD
 #include "c_code/cpybot.h"
