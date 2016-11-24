@@ -23,16 +23,14 @@ where <client_name> is a name of a bot:
 * human     - Human player
 * mcts      - Pure MCTS implementation
 * mctsplus  - Nasty MCTS with tweaks that may or may not help (deprecated)
-* fast      - Compiled C implementation of mcts
+* cpy fast  - Compiled C implementation of mcts
 * random    - Random player (for testing)
+* cpy mcts  - In development heavily optimized C implementation
 
-The client and host run on INET sockets over port 11001.
+The client and host run on INET sockets over port 11001 by default.
 
 To run using the 'fast' bot, you need to install the package.
-The most painless way to do this is by running:
-
-    python3 setup.py build_ext --inplace
-
+The easiest way is to just run `make`.
 This will make a local-only copy that is easy to change later.
 
 # Replayer
@@ -41,6 +39,10 @@ The host automatically saves a replay file to moves.dat.
 You can play a replay of the match using
 
         python3 replayer.py
+
+* Pressing Enter moves a step forward,
+* Pressing Ctrl+C moves a step backward,
+* Pressing Ctrl+D quits.
 
 The moves.dat file is a list of tuples.
 Each line is exactly 5 characters:
