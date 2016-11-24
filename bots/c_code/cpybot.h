@@ -17,7 +17,7 @@
 #ifndef CPYBOT_H
 #define CPYBOT_H
 
-#include <python3.5/Python.h>
+#include "python3.5/Python.h"
 
 typedef struct {
     int row;

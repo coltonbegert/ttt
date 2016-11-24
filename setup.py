@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
 
-from setuptools import setup
-from distutils.core import Extension
+from distutils.core import setup, Extension
 
 modules = []
 modules.append(Extension('fast_mcts',
